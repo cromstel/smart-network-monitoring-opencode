@@ -170,3 +170,28 @@ export async function findAllMacAddresses(): Promise<string[]> {
     .execute()
   return rows.map((r) => r.mac_address)
 }
+
+export async function findByMac(macAddress: string): Promise<Device | null> {
+  const row = await db
+    .selectFrom('devices')
+    .selectAll()
+    .where('mac_address', '=', macAddress.toUpperCase())
+    .executeTakeFirst()
+
+  return row ? rowToDevice(row) : null
+}
+
+export async function updateFromScan(id: string, ipAddress: string, hostname: string | null): Promise<void> {
+  const now = new Date().toISOString()
+  await db
+    .updateTable('devices')
+    .set({
+      ip_address: ipAddress,
+      hostname: hostname,
+      status: 'online',
+      last_seen: now,
+      updated_at: now,
+    })
+    .where('id', '=', id)
+    .execute()
+}

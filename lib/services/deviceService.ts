@@ -65,3 +65,12 @@ export async function markStaleDevicesOffline(scanIntervalSeconds: number): Prom
   }
   return stale
 }
+
+export async function upsertFromScan(input: deviceRepo.ScanDeviceInput): Promise<Device | null> {
+  await deviceRepo.upsertFromScan(input)
+  return deviceRepo.findByMac(input.macAddress)
+}
+
+export async function updateFromScan(id: string, ipAddress: string, hostname: string | null): Promise<void> {
+  await deviceRepo.updateFromScan(id, ipAddress, hostname)
+}
