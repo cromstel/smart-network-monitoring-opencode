@@ -1,10 +1,9 @@
 import { Scanner, ScannerMode } from './types'
 import { simulatedScanner } from './simulatedScanner'
 import { arpScanner } from './arpScanner'
+import { asusScanner } from './asusScanner'
 import { getConfig } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
-
-let asusScanner: Scanner | null = null
 
 export async function selectScanner(): Promise<Scanner> {
   const cfg = getConfig()
@@ -56,8 +55,4 @@ async function getNamedScanner(mode: ScannerMode): Promise<Scanner | null> {
     default:
       return null
   }
-}
-
-export function setAsusScanner(scanner: Scanner | null): void {
-  asusScanner = scanner
 }

@@ -4,6 +4,10 @@ import { resolve } from 'node:path'
 import { logger } from '@/lib/utils/logger'
 
 const ARP_SCAN_BIN = process.platform === 'win32' ? 'arp-scan.exe' : 'arp-scan'
+const CACHE_TTL = 5 * 60 * 1000
+
+let cachedAvailable: boolean | null = null
+let cachedAt = 0
 
 function which(bin: string): Promise<string | null> {
   return new Promise((resolve) => {
@@ -47,18 +51,33 @@ function parseArpScanOutput(output: string): DiscoveredDevice[] {
   return devices
 }
 
+function isCacheValid(): boolean {
+  return cachedAvailable !== null && Date.now() - cachedAt < CACHE_TTL
+}
+
+function setCache(value: boolean): void {
+  cachedAvailable = value
+  cachedAt = Date.now()
+}
+
+export function invalidateArpCache(): void {
+  cachedAvailable = null
+  cachedAt = 0
+}
+
 export const arpScanner: Scanner = {
   name: 'arp',
-  _cachedAvailable: null as boolean | null,
+  _cachedAvailable: undefined as boolean | undefined,
 
   async isAvailable(): Promise<boolean> {
-    const cached = this._cachedAvailable
-    if (cached !== null) return cached as boolean
+    if (isCacheValid()) {
+      return cachedAvailable as boolean
+    }
 
     const binPath = await which(ARP_SCAN_BIN)
     if (!binPath) {
       logger.warn({ scanner: 'arp' }, 'arp-scan binary not found in PATH')
-      this._cachedAvailable = false
+      setCache(false)
       return false
     }
 
@@ -68,11 +87,11 @@ export const arpScanner: Scanner = {
         { scanner: 'arp', binary: binPath },
         'arp-scan found but lacks CAP_NET_RAW; requires root or setcap cap_net_raw+ep'
       )
-      this._cachedAvailable = false
+      setCache(false)
       return false
     }
 
-    this._cachedAvailable = true
+    setCache(true)
     return true
   },
 

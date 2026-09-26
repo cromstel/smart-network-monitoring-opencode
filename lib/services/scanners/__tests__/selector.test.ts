@@ -1,9 +1,11 @@
-import { selectScanner, setAsusScanner } from '../selector'
+import { selectScanner } from '../selector'
 import { simulatedScanner } from '../simulatedScanner'
 import { arpScanner } from '../arpScanner'
+import { asusScanner } from '../asusScanner'
 import { Scanner } from '../types'
 
 const mockArpScanner = arpScanner as jest.Mocked<typeof arpScanner>
+const mockAsusScanner = asusScanner as jest.Mocked<typeof asusScanner>
 
 jest.mock('@/lib/config', () => ({
   getConfig: jest.fn(() => ({ SCANNER_MODE: 'simulated' as const })),
@@ -27,13 +29,22 @@ jest.mock('@/lib/services/scanners/arpScanner', () => ({
   },
 }))
 
+jest.mock('@/lib/services/scanners/asusScanner', () => ({
+  asusScanner: {
+    name: 'asus' as const,
+    isAvailable: jest.fn().mockResolvedValue(false),
+    scan: jest.fn(),
+    _cachedAvailable: undefined as boolean | undefined,
+  },
+}))
+
 const { getConfig } = require('@/lib/config')
 const { logger } = require('@/lib/utils/logger')
 
 describe('scanner fallback chain', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    setAsusScanner(null)
+    mockAsusScanner.isAvailable.mockResolvedValue(false)
     getConfig.mockReturnValue({ SCANNER_MODE: 'simulated' })
     mockArpScanner.isAvailable.mockReset()
     mockArpScanner.isAvailable.mockResolvedValue(false)
@@ -83,15 +94,9 @@ describe('scanner fallback chain', () => {
     )
   })
 
-  it('tries ASUS before ARP when ASUS scanner is set', async () => {
+  it('tries ASUS before ARP when ASUS scanner is available', async () => {
     getConfig.mockReturnValueOnce({ SCANNER_MODE: 'arp' })
-
-    const mockAsus: Scanner = {
-      name: 'asus',
-      isAvailable: jest.fn().mockResolvedValue(true),
-      scan: jest.fn(),
-    }
-    setAsusScanner(mockAsus)
+    mockAsusScanner.isAvailable.mockResolvedValueOnce(true)
 
     const scanner = await selectScanner()
     expect(scanner.name).toBe('asus')

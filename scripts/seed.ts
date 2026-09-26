@@ -21,6 +21,7 @@ const CATEGORIES = [
 ]
 
 interface SeedDevice {
+  id: string
   mac: string
   ip: string
   hostname: string
@@ -32,18 +33,18 @@ interface SeedDevice {
 }
 
 const DEVICES: SeedDevice[] = [
-  { mac: 'A4:83:E7:2C:11:09', ip: '192.168.1.42', hostname: 'anas-iphone', name: 'Ana\'s iPhone', type: 'phone', manufacturer: 'Apple, Inc.', signalStrength: -52, categoryId: CATEGORIES[0].id },
-  { mac: '3C:22:FB:44:90:12', ip: '192.168.1.43', hostname: 'anas-macbook', name: 'Ana\'s MacBook', type: 'laptop', manufacturer: 'Apple, Inc.', signalStrength: -47, categoryId: CATEGORIES[0].id },
-  { mac: '58:8A:5A:71:CC:2F', ip: '192.168.1.44', hostname: 'living-tv', name: 'Living Room TV', type: 'tv', manufacturer: 'Samsung', signalStrength: null, categoryId: CATEGORIES[1].id },
-  { mac: 'D8:43:AE:12:AB:77', ip: '192.168.1.45', hostname: 'sonos-kitchen', name: 'Kitchen Speaker', type: 'speaker', manufacturer: 'Sonos', signalStrength: -61, categoryId: CATEGORIES[1].id },
-  { mac: 'B0:39:56:0D:39:11', ip: '192.168.1.46', hostname: 'hp-office', name: 'Office Printer', type: 'printer', manufacturer: 'HP', signalStrength: null, categoryId: null },
-  { mac: 'F8:E4:3B:5A:90:C8', ip: '192.168.1.47', hostname: 'ring-doorbell', name: 'Doorbell Cam', type: 'camera', manufacturer: 'Amazon', signalStrength: -70, categoryId: CATEGORIES[2].id },
-  { mac: '34:E6:D7:00:BE:3A', ip: '192.168.1.48', hostname: 'synology-nas', name: 'NAS Server', type: 'server', manufacturer: 'Synology', signalStrength: null, categoryId: null },
-  { mac: '04:9F:3E:22:11:5B', ip: '192.168.1.49', hostname: 'desk-laptop', name: 'Work Laptop', type: 'laptop', manufacturer: 'Lenovo', signalStrength: -55, categoryId: CATEGORIES[0].id },
-  { mac: '98:DA:32:7F:06:44', ip: '192.168.1.50', hostname: 'kindle', name: 'e-Reader', type: 'tablet', manufacturer: 'Amazon', signalStrength: -58, categoryId: null },
-  { mac: '48:CA:43:99:1B:E0', ip: '192.168.1.51', hostname: 'nest-thermostat', name: 'Thermostat', type: 'iot', manufacturer: 'Google', signalStrength: -64, categoryId: CATEGORIES[2].id },
-  { mac: '1C:B7:2C:44:FF:02', ip: '192.168.1.52', hostname: 'game-ps5', name: 'PlayStation 5', type: 'tv', manufacturer: 'Sony', signalStrength: -50, categoryId: CATEGORIES[1].id },
-  { mac: '6C:37:2B:EE:26:81', ip: '192.168.1.53', hostname: 'unifi-switch', name: 'Network Switch', type: 'switch', manufacturer: 'Ubiquiti', signalStrength: null, categoryId: null },
+  { id: randomUUID(), mac: 'A4:83:E7:2C:11:09', ip: '192.168.1.42', hostname: 'anas-iphone', name: "Ana's iPhone", type: 'phone', manufacturer: 'Apple, Inc.', signalStrength: -52, categoryId: CATEGORIES[0].id },
+  { id: randomUUID(), mac: '3C:22:FB:44:90:12', ip: '192.168.1.43', hostname: 'anas-macbook', name: "Ana's MacBook", type: 'laptop', manufacturer: 'Apple, Inc.', signalStrength: -47, categoryId: CATEGORIES[0].id },
+  { id: randomUUID(), mac: '58:8A:5A:71:CC:2F', ip: '192.168.1.44', hostname: 'living-tv', name: 'Living Room TV', type: 'tv', manufacturer: 'Samsung', signalStrength: null, categoryId: CATEGORIES[1].id },
+  { id: randomUUID(), mac: 'D8:43:AE:12:AB:77', ip: '192.168.1.45', hostname: 'sonos-kitchen', name: 'Kitchen Speaker', type: 'speaker', manufacturer: 'Sonos', signalStrength: -61, categoryId: CATEGORIES[1].id },
+  { id: randomUUID(), mac: 'B0:39:56:0D:39:11', ip: '192.168.1.46', hostname: 'hp-office', name: 'Office Printer', type: 'printer', manufacturer: 'HP', signalStrength: null, categoryId: null },
+  { id: randomUUID(), mac: 'F8:E4:3B:5A:90:C8', ip: '192.168.1.47', hostname: 'ring-doorbell', name: 'Doorbell Cam', type: 'camera', manufacturer: 'Amazon', signalStrength: -70, categoryId: CATEGORIES[2].id },
+  { id: randomUUID(), mac: '34:E6:D7:00:BE:3A', ip: '192.168.1.48', hostname: 'synology-nas', name: 'NAS Server', type: 'server', manufacturer: 'Synology', signalStrength: null, categoryId: null },
+  { id: randomUUID(), mac: '04:9F:3E:22:11:5B', ip: '192.168.1.49', hostname: 'desk-laptop', name: 'Work Laptop', type: 'laptop', manufacturer: 'Lenovo', signalStrength: -55, categoryId: CATEGORIES[0].id },
+  { id: randomUUID(), mac: '98:DA:32:7F:06:44', ip: '192.168.1.50', hostname: 'kindle', name: 'e-Reader', type: 'tablet', manufacturer: 'Amazon', signalStrength: -58, categoryId: null },
+  { id: randomUUID(), mac: '48:CA:43:99:1B:E0', ip: '192.168.1.51', hostname: 'nest-thermostat', name: 'Thermostat', type: 'iot', manufacturer: 'Google', signalStrength: -64, categoryId: CATEGORIES[2].id },
+  { id: randomUUID(), mac: '1C:B7:2C:44:FF:02', ip: '192.168.1.52', hostname: 'game-ps5', name: 'PlayStation 5', type: 'tv', manufacturer: 'Sony', signalStrength: -50, categoryId: CATEGORIES[1].id },
+  { id: randomUUID(), mac: '6C:37:2B:EE:26:81', ip: '192.168.1.53', hostname: 'unifi-switch', name: 'Network Switch', type: 'switch', manufacturer: 'Ubiquiti', signalStrength: null, categoryId: null },
 ]
 
 function iso(ms: number): string {
@@ -63,7 +64,7 @@ async function seedBandwidth(now: number): Promise<void> {
         const stepping = i * 4096 * 1024 + base * 65536
         rows.push({
           id: randomUUID(),
-          device_id: DEVICES[i].mac,
+          device_id: DEVICES[i].id,
           timestamp: iso(t),
           upload_speed: Number((0.2 + ((i * 3 + slot) % 9) * 0.4).toFixed(2)),
           download_speed: Number((1.2 + ((i * 5 + day * 7) % 23) * 3.1).toFixed(2)),
@@ -106,7 +107,7 @@ async function run(): Promise<void> {
     await db
       .insertInto('devices')
       .values({
-        id: d.mac,
+        id: d.id,
         mac_address: d.mac,
         ip_address: d.ip,
         hostname: d.hostname,
@@ -138,7 +139,7 @@ async function run(): Promise<void> {
         .values([
           {
             id: randomUUID(),
-            device_id: d.mac,
+            device_id: d.id,
             event_type: 'connected',
             timestamp: iso(dayStart - 12 * 3600 * 1000),
             ip_address: d.ip,
@@ -147,7 +148,7 @@ async function run(): Promise<void> {
           },
           {
             id: randomUUID(),
-            device_id: d.mac,
+            device_id: d.id,
             event_type: 'disconnected',
             timestamp: iso(dayStart - 12 * 3600 * 1000 + 8 * 3600 * 1000),
             ip_address: d.ip,
@@ -189,8 +190,8 @@ async function run(): Promise<void> {
     .insertInto('device_alerts')
     .values([
       { id: randomUUID(), user_id: adminId, device_id: null, alert_type: 'unknown_device', threshold: null, is_active: 1, created_at: created, updated_at: created },
-      { id: randomUUID(), user_id: adminId, device_id: DEVICES[0].mac, alert_type: 'bandwidth_exceeded', threshold: 50, is_active: 1, created_at: created, updated_at: created },
-      { id: randomUUID(), user_id: adminId, device_id: DEVICES[11].mac, alert_type: 'device_offline', threshold: null, is_active: 1, created_at: created, updated_at: created },
+      { id: randomUUID(), user_id: adminId, device_id: DEVICES[0].id, alert_type: 'bandwidth_exceeded', threshold: 50, is_active: 1, created_at: created, updated_at: created },
+      { id: randomUUID(), user_id: adminId, device_id: DEVICES[11].id, alert_type: 'device_offline', threshold: null, is_active: 1, created_at: created, updated_at: created },
     ])
     .execute()
 
