@@ -3,8 +3,7 @@ import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { listDevices } from '@/lib/services/deviceService'
 import { toDeviceDTO } from '@/lib/api/serialisers'
-import { apiError } from '@/lib/api/errors'
-import { requireRole, AuthContext } from '@/lib/services/authService'
+import { requireAuth } from '@/lib/api/auth'
 import type { DeviceFilters } from '@/lib/types'
 
 const querySchema = z.object({
@@ -19,17 +18,10 @@ const querySchema = z.object({
 })
 
 export async function GET(request: NextRequest) {
-  const userId = request.headers.get('x-user-id')
-  const userRole = request.headers.get('x-user-role')
+  const authResult = await requireAuth(['VIEWER', 'MEMBER', 'ADMIN'])
 
-  const auth: AuthContext | null = userId && userRole
-    ? { id: userId, role: userRole as AuthContext['role'] }
-    : null
-
-  try {
-    requireRole(auth, 'VIEWER', 'MEMBER', 'ADMIN')
-  } catch {
-    return apiError(401, 'UNAUTHENTICATED', 'Authentication required')
+  if (authResult instanceof NextResponse) {
+    return authResult
   }
 
   const parsed = querySchema.safeParse(
@@ -37,11 +29,13 @@ export async function GET(request: NextRequest) {
   )
 
   if (!parsed.success) {
-    return apiError(
-      400,
-      'INVALID_QUERY',
-      'pageSize must be between 1 and 100.',
-      parsed.error.flatten()
+    return NextResponse.json(
+      {
+        error: 'INVALID_QUERY',
+        message: 'Invalid query parameters',
+        details: parsed.error.flatten(),
+      },
+      { status: 400 }
     )
   }
 

@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createUser } from '@/lib/services/authService'
 import { db } from '@/lib/db/client'
-import { apiError } from '@/lib/api/errors'
+import { requireAuth } from '@/lib/api/auth'
 import { logger } from '@/lib/utils/logger'
 
 const setupSchema = z.object({
@@ -23,23 +23,39 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(['ADMIN'])
+
+  if (authResult instanceof NextResponse) {
+    return authResult
+  }
+
   try {
     const existing = await db.selectFrom('users').select('id').executeTakeFirst()
     if (existing) {
-      return apiError(409, 'CONFLICT', 'Setup already completed')
+      return NextResponse.json(
+        { error: 'CONFLICT', message: 'Setup already completed' },
+        { status: 409 }
+      )
     }
 
     const body = await request.json()
     const parsed = setupSchema.safeParse(body)
 
     if (!parsed.success) {
-      return apiError(400, 'INVALID_BODY', 'Invalid input', parsed.error.flatten())
+      return NextResponse.json(
+        {
+          error: 'INVALID_BODY',
+          message: 'Invalid input',
+          details: parsed.error.flatten(),
+        },
+        { status: 400 }
+      )
     }
 
     const { email, password, name } = parsed.data
     const user = await createUser({ email, password, name, role: 'ADMIN' })
 
-    logger.info({ userId: user.id }, 'initial admin created via setup')
+    logger.info({ userId: user.id }, 'admin created via setup')
     return NextResponse.json({
       data: {
         user: { id: user.id, email: user.email, name: user.name, role: user.role },
@@ -47,6 +63,9 @@ export async function POST(request: NextRequest) {
     })
   } catch (err) {
     logger.error({ err }, 'setup error')
-    return apiError(500, 'INTERNAL', 'Setup failed')
+    return NextResponse.json(
+      { error: 'INTERNAL', message: 'Setup failed' },
+      { status: 500 }
+    )
   }
 }

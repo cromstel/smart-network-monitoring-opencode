@@ -4,6 +4,25 @@
  * reach the wire as an exact string, not a rounded number.
  */
 
+import { cookies } from 'next/headers'
+import { validateSession } from '@/lib/services/authService'
+import { getAuthContext, requireAuth } from '@/lib/api/auth'
+
+jest.mock('next/headers', () => ({
+  cookies: jest.fn(),
+}))
+
+jest.mock('@/lib/services/authService', () => ({
+  ...jest.requireActual('@/lib/services/authService'),
+  validateSession: jest.fn(),
+}))
+
+jest.mock('@/lib/api/auth', () => ({
+  ...jest.requireActual('@/lib/api/auth'),
+  getAuthContext: jest.fn(),
+  requireAuth: jest.fn(),
+}))
+
 const DEVICE_ID = '00000000-0000-4000-8000-000000000001'
 // Fits SQLite's signed 64-bit INTEGER (exact on both dialects) yet exceeds
 // Number.MAX_SAFE_INTEGER — the A-05 case.
@@ -14,6 +33,9 @@ describe('GET /api/devices — BigInt serialisation', () => {
   let db: import('kysely').Kysely<import('@/lib/db/schema').DB>
   let GET: (req: import('next/server').NextRequest) => Promise<Response>
   let NextRequest: typeof import('next/server').NextRequest
+  let validateSessionMock: jest.Mock
+  let getAuthContextMock: jest.Mock
+  let requireAuthMock: jest.Mock
 
   beforeAll(async () => {
     // Must be set before lib/db/client.ts is evaluated (it reads DB_FILE at import).
@@ -75,6 +97,35 @@ describe('GET /api/devices — BigInt serialisation', () => {
       })
       .execute()
 
+    // Create a test user session
+    await db
+      .insertInto('users')
+      .values({
+        id: 'test-user',
+        email: 'test@example.com',
+        password_hash: 'hash',
+        name: 'Test User',
+        role: 'VIEWER',
+        is_active: 1,
+        created_at: '2026-08-01T09:12:00.000Z',
+        updated_at: '2026-08-01T09:12:00.000Z',
+      })
+      .execute()
+
+    // Insert session with a known hash
+    await db
+      .insertInto('sessions')
+      .values({
+        id: 'test-session',
+        user_id: 'test-user',
+        token_hash: 'test-hash',
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        ip_address: null,
+        user_agent: null,
+        created_at: new Date().toISOString(),
+      })
+      .execute()
+
     const route = await import('@/app/api/devices/route')
     GET = route.GET
   })
@@ -85,14 +136,70 @@ describe('GET /api/devices — BigInt serialisation', () => {
     delete process.env.DB_FILE
   })
 
+  beforeEach(() => {
+    jest.clearAllMocks()
+    validateSessionMock = jest.fn().mockResolvedValue({
+      user: {
+        id: 'test-user',
+        email: 'test@example.com',
+        name: 'Test User',
+        role: 'VIEWER',
+        isActive: true,
+        lastLoginAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      session: {
+        id: 'test-session',
+        userId: 'test-user',
+        tokenHash: 'test-hash',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        ipAddress: null,
+        userAgent: null,
+        createdAt: new Date(),
+      },
+    })
+    ;(validateSession as jest.Mock).mockImplementation(validateSessionMock)
+
+    getAuthContextMock = jest.fn().mockResolvedValue({
+      user: { id: 'test-user', role: 'VIEWER' },
+      session: {
+        id: 'test-session',
+        userId: 'test-user',
+        tokenHash: 'test-hash',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        ipAddress: null,
+        userAgent: null,
+        createdAt: new Date(),
+      },
+    })
+    ;(getAuthContext as jest.Mock).mockImplementation(getAuthContextMock)
+
+    requireAuthMock = jest.fn().mockResolvedValue({
+      user: { id: 'test-user', role: 'VIEWER' },
+      session: {
+        id: 'test-session',
+        userId: 'test-user',
+        tokenHash: 'test-hash',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        ipAddress: null,
+        userAgent: null,
+        createdAt: new Date(),
+      },
+    })
+    ;(requireAuth as jest.Mock).mockImplementation(requireAuthMock)
+
+    ;(cookies as jest.Mock).mockReturnValue({
+      get: jest.fn((name: string) => {
+        if (name === 'session') return { value: 'test-session-token' }
+        return undefined
+      }),
+    })
+  })
+
   it('returns byte counters as exact strings above Number.MAX_SAFE_INTEGER', async () => {
     const res = await GET(
-      new NextRequest('http://localhost/api/devices', {
-        headers: {
-          'x-user-id': 'test-user',
-          'x-user-role': 'VIEWER',
-        },
-      })
+      new NextRequest('http://localhost/api/devices')
     )
     const body = await res.json()
 

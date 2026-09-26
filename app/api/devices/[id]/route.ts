@@ -1,45 +1,37 @@
 import { NextResponse } from 'next/server'
 import { getDeviceById, updateDeviceById } from '@/lib/services/deviceService'
 import { toDeviceDTO } from '@/lib/api/serialisers'
-import { apiError } from '@/lib/api/errors'
-import { requireRole, type AuthContext } from '@/lib/services/authService'
+import { requireAuth } from '@/lib/api/auth'
 
 interface RouteContext {
   params: Promise<{ id: string }>
 }
 
 export async function GET(request: Request, context: RouteContext) {
-  const userId = request.headers.get('x-user-id')
-  const userRole = request.headers.get('x-user-role')
+  const authResult = await requireAuth(['VIEWER', 'MEMBER', 'ADMIN'])
 
-  const auth: AuthContext | null = userId && userRole ? { id: userId, role: userRole as AuthContext['role'] } : null
-
-  try {
-    requireRole(auth, 'VIEWER', 'MEMBER', 'ADMIN')
-  } catch (e) {
-    return apiError(401, 'UNAUTHENTICATED', 'Authentication required')
+  if (authResult instanceof NextResponse) {
+    return authResult
   }
 
   const { id } = await context.params
 
   const device = await getDeviceById(id)
   if (!device) {
-    return apiError(404, 'NOT_FOUND', 'Device not found.')
+    return NextResponse.json(
+      { error: 'NOT_FOUND', message: 'Device not found.' },
+      { status: 404 }
+    )
   }
 
   return NextResponse.json({ data: toDeviceDTO(device) })
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
-  const userId = request.headers.get('x-user-id')
-  const userRole = request.headers.get('x-user-role')
+  const authResult = await requireAuth(['ADMIN', 'MEMBER'])
 
-  const auth: AuthContext | null = userId && userRole ? { id: userId, role: userRole as AuthContext['role'] } : null
-
-  try {
-    requireRole(auth, 'ADMIN', 'MEMBER')
-  } catch (e) {
-    return apiError(401, 'UNAUTHENTICATED', 'Authentication required')
+  if (authResult instanceof NextResponse) {
+    return authResult
   }
 
   const { id } = await context.params
@@ -48,7 +40,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     body = await request.json()
   } catch {
-    return apiError(400, 'INVALID_BODY', 'Invalid JSON body')
+    return NextResponse.json(
+      { error: 'INVALID_BODY', message: 'Invalid JSON body' },
+      { status: 400 }
+    )
   }
 
   const allowedTypes = [
@@ -64,24 +59,36 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   if (body.deviceType !== undefined) {
     if (!allowedTypes.includes(body.deviceType)) {
-      return apiError(400, 'INVALID_BODY', 'Invalid device type')
+      return NextResponse.json(
+        { error: 'INVALID_BODY', message: 'Invalid device type' },
+        { status: 400 }
+      )
     }
     patch.deviceType = body.deviceType
   }
 
   if (Object.keys(patch).length === 0) {
-    return apiError(400, 'INVALID_BODY', 'No valid fields to update')
+    return NextResponse.json(
+      { error: 'INVALID_BODY', message: 'No valid fields to update' },
+      { status: 400 }
+    )
   }
 
   const updated = await updateDeviceById(id, patch)
 
   if (!updated) {
-    return apiError(404, 'NOT_FOUND', 'Device not found.')
+    return NextResponse.json(
+      { error: 'NOT_FOUND', message: 'Device not found.' },
+      { status: 404 }
+    )
   }
 
   const device = await getDeviceById(id)
   if (!device) {
-    return apiError(404, 'NOT_FOUND', 'Device not found after update.')
+    return NextResponse.json(
+      { error: 'NOT_FOUND', message: 'Device not found after update.' },
+      { status: 404 }
+    )
   }
 
   return NextResponse.json({ data: toDeviceDTO(device) })
