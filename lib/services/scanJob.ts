@@ -228,32 +228,3 @@ async function recordScanHistory(input: {
     logger.error({ err }, 'failed to record scan history')
   }
 }
-
-/** Test seam — runs a scan against a fixed device list. */
-export async function scanWith(scanner: { name: string; scan: (s: string) => Promise<DiscoveredDevice[]> }): Promise<ScanResult> {
-  const cfg = getConfig()
-  const knownMacs = new Set(await findAllMacAddresses())
-  const discovered = await scanner.scan(cfg.NETWORK_SUBNET)
-
-  let newDevices = 0
-  for (const d of discovered) {
-    await ingest(d, knownMacs, {
-      onNew: () => {
-        newDevices += 1
-      },
-      onReconnect: () => undefined,
-    })
-  }
-
-  return {
-    scanner: scanner.name,
-    durationMs: 0,
-    devicesFound: discovered.length,
-    newDevices,
-    reconnected: 0,
-    wentOffline: 0,
-    errors: 0,
-  }
-}
-
-export type { Device }

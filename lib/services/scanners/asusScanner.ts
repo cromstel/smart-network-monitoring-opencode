@@ -126,7 +126,25 @@ export const asusScanner: Scanner = {
     }
 
     try {
-      await makeRequest<{ success: boolean }>(config, '/appGet.cgi?hook=wl_clientlist()', 'GET')
+      // A router that rejects the credentials answers HTTP 200 with
+      // `success: false`, so the status code alone is not enough — checking
+      // only `response.ok` marked an unusable router as available, and the
+      // scanner was then selected and failed on every subsequent scan.
+      const body = await makeRequest<{ success: boolean; error?: string }>(
+        config,
+        '/appGet.cgi?hook=wl_clientlist()',
+        'GET'
+      )
+
+      if (body?.success !== true) {
+        logger.warn(
+          { scanner: 'asus', routerError: body?.error ?? 'unsuccessful response' },
+          'ASUS router rejected the request'
+        )
+        this._cachedAvailable = false
+        return false
+      }
+
       this._cachedAvailable = true
       invalidateConfigCache()
       return true

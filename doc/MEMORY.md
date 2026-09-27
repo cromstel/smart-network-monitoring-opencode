@@ -50,16 +50,30 @@ These override any suggestion, convenience, or precedent. If a task appears to r
 
 ## 4. Current state
 
-**Phase: 0 — Stabilisation.** Foundation scaffolded and building.
+**Phase: 5 complete, Phase 6 partially done.** Phases 0–5 are implemented and
+verified end-to-end against SQLite; the MySQL leg runs in CI.
 
-The checked-in tree originally held only `doc/` — none of the ~80 source files described in `AUDIT.md` exist, so Phase 0 produced a greenfield scaffold. It now builds end-to-end against SQLite.
+- Next.js 15.5 App Router, React 19, Tailwind, Zod config, pino logger
+- Kysely 0.28.17 + better-sqlite3 12 / mysql2; 13 tables in 6 migrations
+  (`db:migrate` / `db:migrate:down` round-trip verified)
+- Scanners: simulated, ARP (capability probe, cached with a 5-minute TTL), ASUS
+  (router API, AES-256-GCM credentials, HTTP client under test)
+- Auth: bcrypt cost 12, first-run setup, login/logout, middleware allowlist,
+  and `lib/api/auth.ts` re-validating the session in every route handler
+- Real-time: SSE at `/api/events`, fed by `scanJob`, consumed by
+  `useEventStream`, opened once in the dashboard layout
+- Alerts: rule engine, activity log, owner scoping enforced in the repository
+- Settings: per-user, Zod-validated, persisted
+- CI: type-check, build, SQLite suite, MySQL 8 suite, Playwright E2E
+- Verified: `type-check` clean · `next build` green · 166 tests pass ·
+  85% statements and lines (gate is 70%) · `npm audit` reports 0 vulnerabilities
 
-- Next.js 15.5 App Router, React 19 stable, Tailwind, zod config, pino logger
-- Kysely 0.27 + better-sqlite3 12 (`mysql2` still to come for prod); 13-table schema in 6 migrations (`db:migrate`/`db:migrate:down` verified)
-- Device/bandwidth/connection-log repositories + device service, 3 API routes (`/api/health`, `/api/devices`, `/api/devices/[id]`)
-- Public landing `/` and authenticated-shell route group `(dashboard)/` at `/dashboard`
-- Jest + ts-jest suite wired (`npm test`)
-- Verified: `type-check` clean, 25/25 tests pass, `next build` green, migrations up/down round-trip
+**Not yet evidenced** — see `doc/TODO.md` § Known follow-ups:
+
+- PRD §5 performance targets are unmeasured; `doc/PERFORMANCE.md` does not exist
+- No 24-hour soak
+- The E2E specs have never been executed locally (browser CDN unreachable here)
+- Multi-instance deployments need a shared rate-limit store
 
 ---
 
@@ -77,6 +91,17 @@ The checked-in tree originally held only `doc/` — none of the ~80 source files
 | SQLite BIGINT read via `defaultSafeIntegers(true)` | `MysqlDialect` returns byte counters as strings; better-sqlite3 would round a >2^53 counter to a double. Safe-integer mode hands back `BigInt` and the mapper normalises (`Number()` for small ints, `String()` for byte counters, `toBool` uses `Number(value) === 1`) |
 | Phase 2 (B-20..B-25) complete | Scanner abstraction with simulated/ARP/ASUS, fallback chain with logging, offline OUI lookup via `oui-data`, cron jobs (scan/rollup/prune) via `instrumentation.ts`, connection event detection diffing scans against known state. All 57 tests pass, build green. |
 | Phase 3 (B-30..B-35) complete | Full auth stack: bcrypt users/sessions, first-run setup wizard, login/logout with httpOnly cookies, middleware with allowlist, `requireRole` on all device routes, login rate limiting (5/15min). 80 tests pass, build green. |
+| `instrumentation.ts` lives in the **repository root** | Next.js loads it from there or from `src/`, nowhere else. In `lib/` it is an ordinary module that nothing imports, so no job ever runs. The silent failure mode is the reason this is written down. |
+| Scanning uses a timer, not a cron expression | `SCAN_INTERVAL_SECONDS` is configurable over 30–3600 and cron cannot express an interval that does not divide 60 (`*/45 * * * * *` is rejected). Rollup and prune keep cron because their schedules are fixed. |
+| `register()` guards against double start | Without a `globalThis` guard, every `next dev` hot reload stacks another set of cron tasks and a long session silently multiplies database writes. |
+| `normalizeMac` throws on a malformed address | The previous version stripped non-hex characters, so `"not-a-mac"` became `"A:C"` and was written to the database as a phantom device. A rejected row in the scan log beats an undiagnosable ghost. |
+| `KNOWN_ALERT_TYPES` is a `const` tuple | `z.enum` needs a tuple to infer the literal union; a plain `readonly AlertType[]` widens to `string` at the route boundary. |
+| v8 coverage provider | The default provider records untested files on Windows under keys like `lib/services/file:\\C:\\...\\alertService.ts`, which crashes the lcov reporter. v8 emits clean absolute paths. |
+| ts-jest does not type-check (`diagnostics: false`) | `tsconfig.test.json` omits `paths` so Jest's `moduleNameMapper` is the only thing resolving `@/`. Letting ts-jest apply `paths` too loads each module twice on Windows. `tsconfig.json` includes `**/*.ts`, so `npm run type-check` still checks every test file. |
+| `postcss` is pinned by an `overrides` entry | Next 15.5.26 depends on `postcss@8.4.31`, which installs a second, vulnerable copy even though the root resolves 8.5.28. The override dedupes it without waiting for a Next major. |
+| `/api/setup` is reachable without a session | Necessarily: the first account is the one that grants ADMIN, so gating it would make first run impossible. Safety comes from the 409 once any user exists, a 5/hour rate limit, and a 12-character password policy. |
+| Phase 4 (B-40..B-49) and Phase 5 (B-50..B-55) complete | SSE endpoint and event bus with `scanJob` as the producer; `useEventStream` with backoff; device table (14 component tests) and detail page with Recharts; alert engine where one connection raises exactly one alert; activity log; AES-256-GCM router credentials; settings UI. |
+| Phase 6 partial (B-60..B-62, B-65) | Playwright specs for the five PRD §7 flows, a four-job CI pipeline (type-check, build, SQLite suite, MySQL suite, E2E), and `doc/DEPLOYMENT.md` + `doc/TROUBLESHOOTING.md` + `Dockerfile`. B-63 (performance) and B-64 (soak) remain unevidenced. |
 
 ---
 
@@ -130,6 +155,16 @@ Append one entry per session. Newest last. Keep entries to three lines.
              diffing scans against known state (connected/disconnected events, 2 misses = offline).
              57/57 tests pass, next build green. Next: Phase 3 authentication.
 2026-09-24 — Phase 3 auth (B-30..B-35). `users`/`sessions` with bcrypt cost 12, setup wizard,
-             login/logout httpOnly cookies, middleware with allowlist, `requireRole` on device routes,
-             login rate limit (5/15min). 80/80 tests pass, build green. Next: Phase 4 dashboard.
+              login/logout httpOnly cookies, middleware with allowlist, `requireRole` on device routes,
+              login rate limit (5/15min). 80/80 tests pass, build green. Next: Phase 4 dashboard.
+2026-09-27 — Full-repo review and remediation. The app did not actually run: `/login` and `/setup`
+              did not exist, `app/page.tsx` collided with `app/(dashboard)/page.tsx` for `/`, and
+              `instrumentation.ts` sat in `lib/` so no scan/rollup/prune job had ever run. The event
+              bus had no producer and the alert engine was never called, so SSE carried nothing and
+              no alert could fire. Also fixed: encryption that always threw (Web Crypto, 64-hex key
+              vs a 32-char dev fallback), a rolled `rollupHourly` (9 columns into 11), bigint
+              integers leaking through two repositories, and a `.env local` file with a live MySQL
+              password committed under a `.env.*` glob that missed it — that credential needs
+              rotating. 166 tests, 85% coverage with a 70% gate, 0 npm audit findings.
+              Playwright E2E + 4-job CI added; B-63 performance and B-64 soak still unevidenced.
 ```
