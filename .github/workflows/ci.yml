@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A new push supersedes an in-flight run on the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Deterministic, non-secret values for the build. Production secrets are
+  # injected per-environment and are never present in CI logs.
+  SESSION_SECRET: ci-session-secret-not-for-production-use-0000
+  ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
+
+jobs:
+  quality:
+    name: Lint, types, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Build
+        run: npm run build
+        env:
+          NODE_ENV: production
+          DB_CLIENT: sqlite
+          # Production boot requires 32+ character secrets; the env block above
+          # supplies them so the build exercises the real validation path.
+
+  unit:
+    name: Unit tests (SQLite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test with coverage
+        run: npm run test:coverage
+        env:
+          SESSION_SECRET: ci-session-secret-not-for-production-use-0000
+          ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-sqlite
+          path: coverage/
+          retention-days: 7
+
+  mysql:
+    name: Unit tests (MySQL 8)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root
+          MYSQL_DATABASE: home_monitor_test
+          MYSQL_USER: monitor
+          MYSQL_PASSWORD: ci-monitor
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uci-root -pci-root"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # PRD §7 requires the suite to be green against MySQL, not only SQLite.
+      - name: Test against MySQL
+        run: npm test
+        env:
+          DB_CLIENT: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_NAME: home_monitor_test
+          DB_USER: monitor
+          DB_PASSWORD: ci-monitor
+          RUN_MYSQL_TESTS: '1'
+          SESSION_SECRET: ci-session-secret-not-for-production-use-0000
+          ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
+
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E
+        run: npm run test:e2e
+        env:
+          CI: 'true'
+          SESSION_SECRET: e2e-session-secret-not-for-production-000000
+          ENCRYPTION_KEY: e2e-encryption-key-not-for-production-0000000000
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

@@ -16,7 +16,11 @@
     "test:coverage": "jest --coverage",
     "db:migrate": "ts-node --project tsconfig.node.json lib/db/migrate.ts",
     "db:migrate:down": "ts-node --project tsconfig.node.json lib/db/migrate.ts --down",
-    "db:seed": "ts-node --project tsconfig.node.json scripts/seed.ts"
+    "db:seed": "ts-node --project tsconfig.node.json scripts/seed.ts",
+    "db:seed:e2e": "cross-env DB_FILE=./data/e2e.db ts-node --project tsconfig.node.json scripts/e2e-seed.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:all": "npm run type-check && npm run test:coverage && npm run build"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
@@ -45,6 +49,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@testing-library/jest-dom": "^6.4.0",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.0",
@@ -56,6 +61,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.16",
+    "cross-env": "^10.1.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "postcss": "^8.4.31",

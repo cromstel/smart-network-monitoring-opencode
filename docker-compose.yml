@@ -1,24 +1,58 @@
+# Local MySQL for development and for the CI MySQL test leg.
+# Production installs normally use SQLite; see doc/DEPLOYMENT.md.
 services:
   mysql:
     image: mysql:8.0
+    restart: unless-stopped
     environment:
-      MYSQL_DATABASE: home_monitor
-      MYSQL_USER: monitor
-      MYSQL_PASSWORD: monitor
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ${DB_NAME:-home_monitor}
+      MYSQL_USER: ${DB_USER:-monitor}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-monitor}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
     ports:
-      - "3306:3306"
+      - "${DB_PORT:-3306}:3306"
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_ROOT_PASSWORD:-root}"]
       interval: 5s
       timeout: 3s
       retries: 20
       start_period: 30s
 
+  # The application. Start it only when you intend to run against MySQL;
+  # for a plain SQLite install run `docker compose up -d app` after copying
+  # .env.example to .env.
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Container-internal values always win over the host .env.
+      DB_CLIENT: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-home_monitor}
+      DB_USER: ${DB_USER:-monitor}
+      DB_PASSWORD: ${DB_PASSWORD:-monitor}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - app-data:/data
+    # Grants raw sockets so the ARP scanner works. Without it the app falls
+    # back to the simulated scanner and logs a warning every cycle.
+    cap_add:
+      - NET_RAW
+
 volumes:
   mysql-data:
+  app-data:
