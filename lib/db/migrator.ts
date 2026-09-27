@@ -1,6 +1,7 @@
 import { Migrator } from 'kysely'
 import type { Kysely } from 'kysely'
 import type { DB } from './schema'
+import { db } from './client'
 import * as Migration001Devices from './migrations/001_devices'
 import * as Migration002Bandwidth from './migrations/002_bandwidth'
 import * as Migration003ConnectionLogs from './migrations/003_connection_logs'
@@ -24,4 +25,21 @@ export function createMigrator(db: Kysely<DB>): Migrator {
       getMigrations: async () => migrations,
     },
   })
+}
+
+/**
+ * Applies every pending migration against the shared client.
+ * Idempotent — Kysely records what has run, so calling it on every boot is safe.
+ * Returns the names that were applied by this call.
+ */
+export async function runMigrations(): Promise<string[]> {
+  const { error, results } = await createMigrator(db).migrateToLatest()
+
+  if (error) {
+    throw error instanceof Error ? error : new Error(String(error))
+  }
+
+  return (results ?? [])
+    .filter((r) => r.status === 'Success')
+    .map((r) => r.migrationName)
 }

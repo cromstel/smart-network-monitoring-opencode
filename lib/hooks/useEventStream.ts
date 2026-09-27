@@ -1,20 +1,55 @@
 'use client'
 
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { queryClient } from '@/lib/queryClient'
-import { logger } from '@/lib/utils/logger'
 
-interface EventHandlers {
-  onDeviceConnected?: (payload: { deviceId: string; macAddress: string; ipAddress: string; hostname?: string }) => void
-  onDeviceDisconnected?: (payload: { deviceId: string; macAddress: string; connectionDuration: number }) => void
-  onBandwidthTick?: (payload: { deviceId: string; uploadSpeed: number; downloadSpeed: number; timestamp: string }) => void
-  onAlertRaised?: (payload: { alertId: string; deviceId: string | null; alertType: string; message: string; priority: string }) => void
+export interface DeviceConnectedPayload {
+  deviceId: string
+  macAddress: string
+  ipAddress: string
+  hostname?: string
 }
 
-export function useEventStream(handlers: EventHandlers = {}): { isConnected: boolean; error: Error | null } {
-  const eventSourceRef = useRef<EventSource | null>(null)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const reconnectAttemptsRef = useRef(0)
+export interface DeviceDisconnectedPayload {
+  deviceId: string
+  macAddress: string
+  connectionDuration: number
+}
+
+export interface AlertRaisedPayload {
+  alertId: string
+  deviceId: string | null
+  alertType: string
+  message: string
+  priority: string
+}
+
+interface EventHandlers {
+  onDeviceConnected?: (payload: DeviceConnectedPayload) => void
+  onDeviceDisconnected?: (payload: DeviceDisconnectedPayload) => void
+  onAlertRaised?: (payload: AlertRaisedPayload) => void
+}
+
+const MAX_BACKOFF_MS = 30_000
+
+/**
+ * Subscribes to the server's SSE stream and turns events into TanStack Query
+ * invalidations.
+ *
+ * The client never renders an event payload directly — an event only marks a
+ * query stale and the normal fetch path refills it. That keeps one code path
+ * for data whether it arrived by poll or by push (ARCHITECTURE.md §6).
+ *
+ * EventSource reconnects on its own, but a server restart during dev can leave
+ * it in a closed state, so an explicit backoff reconnect is layered on top.
+ */
+export function useEventStream(handlers: EventHandlers = {}): {
+  isConnected: boolean
+  error: Error | null
+} {
+  const sourceRef = useRef<EventSource | null>(null)
+  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const attemptsRef = useRef(0)
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const handlersRef = useRef(handlers)
@@ -22,93 +57,64 @@ export function useEventStream(handlers: EventHandlers = {}): { isConnected: boo
   handlersRef.current = handlers
 
   const connect = useCallback(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-    }
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') return
 
-    const es = new EventSource('/api/events')
-    eventSourceRef.current = es
+    sourceRef.current?.close()
 
-    es.onopen = () => {
+    const source = new EventSource('/api/events')
+    sourceRef.current = source
+
+    source.onopen = () => {
+      attemptsRef.current = 0
       setIsConnected(true)
       setError(null)
-      reconnectAttemptsRef.current = 0
-      logger.info('SSE connection established')
     }
 
-    es.addEventListener('connected', () => {
-      logger.debug('SSE connected event received')
-    })
-
-    es.addEventListener('device.connected', (event) => {
+    source.addEventListener('device.connected', (event) => {
       try {
-        const payload = JSON.parse(event.data)
-        handlersRef.current.onDeviceConnected?.(payload)
-        queryClient.invalidateQueries({ queryKey: ['devices'] })
-      } catch (e) {
-        logger.error({ e }, 'Failed to parse device.connected event')
+        handlersRef.current.onDeviceConnected?.(JSON.parse((event as MessageEvent).data))
+      } catch {
+        /* a malformed frame must not kill the stream */
       }
+      queryClient.invalidateQueries({ queryKey: ['devices'] })
     })
 
-    es.addEventListener('device.disconnected', (event) => {
+    source.addEventListener('device.disconnected', (event) => {
       try {
-        const payload = JSON.parse(event.data)
-        handlersRef.current.onDeviceDisconnected?.(payload)
-        queryClient.invalidateQueries({ queryKey: ['devices'] })
-      } catch (e) {
-        logger.error({ e }, 'Failed to parse device.disconnected event')
+        handlersRef.current.onDeviceDisconnected?.(JSON.parse((event as MessageEvent).data))
+      } catch {
+        /* ignore */
       }
+      queryClient.invalidateQueries({ queryKey: ['devices'] })
     })
 
-    es.addEventListener('bandwidth.tick', (event) => {
+    source.addEventListener('alert.raised', (event) => {
       try {
-        const payload = JSON.parse(event.data)
-        handlersRef.current.onBandwidthTick?.(payload)
-        queryClient.invalidateQueries({ queryKey: ['devices', 'bandwidth'] })
-      } catch (e) {
-        logger.error({ e }, 'Failed to parse bandwidth.tick event')
+        handlersRef.current.onAlertRaised?.(JSON.parse((event as MessageEvent).data))
+      } catch {
+        /* ignore */
       }
+      queryClient.invalidateQueries({ queryKey: ['alerts'] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
     })
 
-    es.addEventListener('alert.raised', (event) => {
-      try {
-        const payload = JSON.parse(event.data)
-        handlersRef.current.onAlertRaised?.(payload)
-        queryClient.invalidateQueries({ queryKey: ['alerts'] })
-      } catch (e) {
-        logger.error({ e }, 'Failed to parse alert.raised event')
-      }
-    })
-
-    es.onerror = (err) => {
+    source.onerror = () => {
       setIsConnected(false)
-      logger.warn({ err }, 'SSE connection error, scheduling reconnect')
+      setError(new Error('Live updates reconnecting…'))
 
-      const delay = Math.min(1000 * 2 ** reconnectAttemptsRef.current, 30_000)
-      reconnectAttemptsRef.current += 1
+      const delay = Math.min(1000 * 2 ** attemptsRef.current, MAX_BACKOFF_MS)
+      attemptsRef.current += 1
 
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
-      }
-
-      reconnectTimeoutRef.current = setTimeout(() => {
-        connect()
-      }, delay)
-
-      setError(new Error('SSE connection lost, reconnecting...'))
+      if (retryRef.current) clearTimeout(retryRef.current)
+      retryRef.current = setTimeout(connect, delay)
     }
   }, [])
 
   useEffect(() => {
     connect()
-
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-      }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
-      }
+      if (retryRef.current) clearTimeout(retryRef.current)
+      sourceRef.current?.close()
     }
   }, [connect])
 

@@ -1,14 +1,20 @@
 import * as deviceRepo from '@/lib/db/repositories/deviceRepository'
 import * as bandwidthRepo from '@/lib/db/repositories/bandwidthRepository'
 import * as connectionLogRepo from '@/lib/db/repositories/connectionLogRepository'
-import type {
-  Device,
-  DeviceFilters,
-  EnrichedDevice,
-  Pagination,
-} from '@/lib/types'
+import { eventBusInstance } from '@/lib/services/eventBus'
+import type { Device, DeviceFilters, EnrichedDevice, Pagination } from '@/lib/types'
+
+/**
+ * F-06: a device is offline after two consecutive missed scans. This module
+ * owns that transition — status, connection log, and the SSE event — so there
+ * is exactly one place that can decide a device went away. Raising the
+ * matching alert is a separate, explicit step in `scanJob` (see
+ * `alertService.evaluateDeviceOffline`) rather than a hidden side effect here.
+ */
 
 const MISSED_SCANS_BEFORE_OFFLINE = 2
+
+export const OFFLINE_AFTER_MISSED_SCANS = MISSED_SCANS_BEFORE_OFFLINE
 
 interface EnrichedListResult {
   data: EnrichedDevice[]
@@ -45,6 +51,10 @@ export async function updateDeviceById(
   return deviceRepo.update(id, patch)
 }
 
+/**
+ * Flips stale devices to offline, records how long they were connected, and
+ * publishes `device.disconnected`. Returns the devices that changed state.
+ */
 export async function markStaleDevicesOffline(scanIntervalSeconds: number): Promise<Device[]> {
   const cutoff = new Date(
     Date.now() - scanIntervalSeconds * MISSED_SCANS_BEFORE_OFFLINE * 1000
@@ -52,17 +62,31 @@ export async function markStaleDevicesOffline(scanIntervalSeconds: number): Prom
   const stale = await deviceRepo.findOnlineLastSeenBefore(cutoff)
 
   for (const device of stale) {
+    const connectionDuration = Math.max(
+      0,
+      Math.floor((Date.now() - device.lastSeen.getTime()) / 1000)
+    )
+
     await deviceRepo.updateStatus(device.id, 'offline')
     await connectionLogRepo.insert({
       deviceId: device.id,
       eventType: 'disconnected',
       timestamp: new Date(),
-      connectionDuration: Math.max(
-        0,
-        Math.floor((Date.now() - device.lastSeen.getTime()) / 1000)
-      ),
+      ipAddress: device.ipAddress,
+      connectionDuration,
+    })
+
+    eventBusInstance.emit({
+      type: 'device.disconnected',
+      timestamp: new Date().toISOString(),
+      payload: {
+        deviceId: device.id,
+        macAddress: device.macAddress,
+        connectionDuration,
+      },
     })
   }
+
   return stale
 }
 
@@ -71,6 +95,10 @@ export async function upsertFromScan(input: deviceRepo.ScanDeviceInput): Promise
   return deviceRepo.findByMac(input.macAddress)
 }
 
-export async function updateFromScan(id: string, ipAddress: string, hostname: string | null): Promise<void> {
+export async function updateFromScan(
+  id: string,
+  ipAddress: string,
+  hostname: string | null
+): Promise<void> {
   await deviceRepo.updateFromScan(id, ipAddress, hostname)
 }

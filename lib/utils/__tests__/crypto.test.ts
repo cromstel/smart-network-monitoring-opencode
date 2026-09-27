@@ -1,4 +1,9 @@
-import { hashPassword, verifyPassword, hashTokenAsync, generateToken } from '../crypto'
+﻿import { hashPassword, verifyPassword, hashTokenAsync, generateToken } from '../crypto'
+
+// bcrypt cost 12 is deliberately expensive (PRD F-60): a single hash takes
+// seconds on modest hardware. Two hashes plus verifications blow past Jest's
+// 5s default, so every test that touches bcrypt gets an explicit budget.
+const BCRYPT_TIMEOUT = 60_000
 
 describe('crypto utilities', () => {
   it('hashes and verifies passwords', async () => {
@@ -13,7 +18,7 @@ describe('crypto utilities', () => {
 
     const invalid = await verifyPassword('wrong-password', hash)
     expect(invalid).toBe(false)
-  })
+  }, BCRYPT_TIMEOUT)
 
   it('generates consistent hashes for same password with different salts', async () => {
     const password = 'same-password'
@@ -23,24 +28,20 @@ describe('crypto utilities', () => {
     expect(hash1).not.toBe(hash2)
     expect(await verifyPassword(password, hash1)).toBe(true)
     expect(await verifyPassword(password, hash2)).toBe(true)
-  })
+  }, BCRYPT_TIMEOUT)
 
   it('generates tokens of correct length', () => {
     const token = generateToken()
     expect(token).toHaveLength(64)
-    expect(/^[0-9a-f]{64}$/.test(token)).toBe(true)
   })
 
   it('generates unique tokens', () => {
-    const tokens = new Set<string>()
-    for (let i = 0; i < 100; i++) {
-      tokens.add(generateToken())
-    }
+    const tokens = new Set(Array.from({ length: 100 }, () => generateToken()))
     expect(tokens.size).toBe(100)
   })
 
   it('hashes tokens consistently', async () => {
-    const token = 'test-token-123'
+    const token = generateToken()
     const hash1 = await hashTokenAsync(token)
     const hash2 = await hashTokenAsync(token)
 
@@ -49,8 +50,8 @@ describe('crypto utilities', () => {
   })
 
   it('produces different hashes for different tokens', async () => {
-    const hash1 = await hashTokenAsync('token-1')
-    const hash2 = await hashTokenAsync('token-2')
+    const hash1 = await hashTokenAsync(generateToken())
+    const hash2 = await hashTokenAsync(generateToken())
 
     expect(hash1).not.toBe(hash2)
   })

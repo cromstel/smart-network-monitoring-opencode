@@ -29,6 +29,33 @@ const envSchema = z.object({
 
 export type AppConfig = z.infer<typeof envSchema>
 
+const MIN_SECRET_LENGTH = 32
+
+/**
+ * A weak secret in production is a real breach, not a style nit: the session
+ * secret signs nothing but is stored alongside sessions, and the encryption
+ * key protects router credentials. Refuse to boot rather than accept either.
+ */
+function assertProductionSecretStrength(candidate: Record<string, unknown>, isProduction: boolean): void {
+  if (!isProduction) return
+
+  const problems: string[] = []
+
+  for (const name of ['SESSION_SECRET', 'ENCRYPTION_KEY'] as const) {
+    const value = candidate[name]
+    if (typeof value !== 'string' || value.trim().length < MIN_SECRET_LENGTH) {
+      problems.push(
+        `${name} must be at least ${MIN_SECRET_LENGTH} characters in production ` +
+          `(generate with: openssl rand -hex ${MIN_SECRET_LENGTH})`
+      )
+    }
+  }
+
+  if (problems.length > 0) {
+    throw new Error(`Insecure production configuration: ${problems.join('; ')}`)
+  }
+}
+
 /**
  * Parses and validates the environment once. Fails fast with a message
  * naming every missing or malformed variable — never a runtime `undefined`
@@ -45,6 +72,8 @@ export function loadConfig(
     SESSION_SECRET: env.SESSION_SECRET?.trim() || (isProduction ? undefined : 'dev-only-insecure-session-secret'),
     ENCRYPTION_KEY: env.ENCRYPTION_KEY?.trim() || (isProduction ? undefined : 'dev-only-insecure-encryption-key'),
   }
+
+  assertProductionSecretStrength(candidate, isProduction)
 
   const parsed = envSchema.safeParse(candidate)
   if (!parsed.success) {

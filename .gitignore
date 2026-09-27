@@ -9,9 +9,10 @@ out/
 *.tsbuildinfo
 next-env.d.ts.orig
 
-# environment — never commit secrets; .env.example is the template
-.env
-.env.*
+# environment — never commit secrets; .env.example is the template.
+# Use `.env*` (glob) not `.env.*` (literal dot): a file named ".env local"
+# with a space was committed to git under the old rule and leaked a DB password.
+.env*
 !.env.example
 
 # local data (SQLite dev database and seed data)

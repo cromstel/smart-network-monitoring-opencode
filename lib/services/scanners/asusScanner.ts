@@ -75,17 +75,17 @@ async function makeRequest<T>(
   method: 'GET' | 'POST' = 'GET',
   body?: Record<string, unknown>
 ): Promise<T> {
-  const baseUrl = `http://${config.router_ip}:${config.port}`
-  const url = `${baseUrl}${endpoint}`
+  const url = `http://${config.router_ip}:${config.port}${endpoint}`
+  const password = decrypt(config.password_encrypted)
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/x-www-form-urlencoded',
     Accept: 'application/json',
-    Authorization: `Basic ${btoa(`${config.username}:${await decrypt(config.password_encrypted)}`)}`,
+    Authorization: `Basic ${Buffer.from(`${config.username}:${password}`, 'utf8').toString('base64')}`,
   }
 
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 10000)
+  const timeoutId = setTimeout(() => controller.abort(), 10_000)
 
   try {
     const response = await fetch(url, {
@@ -95,19 +95,18 @@ async function makeRequest<T>(
       signal: controller.signal,
     })
 
-    clearTimeout(timeoutId)
-
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
-    return response.json() as Promise<T>
+    return (await response.json()) as T
   } catch (error) {
-    clearTimeout(timeoutId)
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Request timeout')
     }
     throw error
+  } finally {
+    clearTimeout(timeoutId)
   }
 }
 

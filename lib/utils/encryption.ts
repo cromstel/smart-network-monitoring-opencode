@@ -1,59 +1,104 @@
+import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { getConfig } from '@/lib/config'
 
-const ALGORITHM = 'AES-GCM'
-const KEY_LENGTH = 256
-const IV_LENGTH = 12
-const TAG_LENGTH = 16
+/**
+ * AES-256-GCM for values at rest (router credentials).
+ *
+ * Wire format is `iv:authTag:ciphertext`, each hex-encoded and colon-joined,
+ * per ARCHITECTURE.md §8. A fresh 96-bit IV is generated per encryption and
+ * the GCM tag is verified on decrypt, so tampering fails loudly.
+ *
+ * The key is `ENCRYPTION_KEY`. A 64-hex-char value is used verbatim (the
+ * documented production form). Anything else is folded to 32 bytes with
+ * SHA-256 so development works without hand-generating a key; production
+ * rejects short keys in `lib/config.ts`.
+ */
 
-async function getCryptoKey(): Promise<CryptoKey> {
-  const config = getConfig()
-  const keyHex = config.ENCRYPTION_KEY
-  if (!keyHex || keyHex.length !== 64) {
-    throw new Error('ENCRYPTION_KEY must be 32 bytes (64 hex characters)')
+const ALGORITHM = 'aes-256-gcm'
+const IV_BYTES = 12
+const TAG_BYTES = 16
+const KEY_BYTES = 32
+const HEX_KEY_LENGTH = KEY_BYTES * 2
+
+let cachedKey: Buffer | null = null
+
+function resolveKeyMaterial(): string {
+  const key = getConfig().ENCRYPTION_KEY
+  if (!key) {
+    throw new Error('ENCRYPTION_KEY is not set — cannot encrypt or decrypt')
   }
-  const keyData = new Uint8Array(keyHex.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16)))
-  return crypto.subtle.importKey('raw', keyData, ALGORITHM, false, ['encrypt', 'decrypt'])
+  return key
 }
 
-export async function encrypt(plaintext: string): Promise<string> {
-  const key = await getCryptoKey()
-  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH))
-  const encoder = new TextEncoder()
-  const data = encoder.encode(plaintext)
-
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: ALGORITHM, iv },
-    key,
-    data
-  )
-
-  const cipherArray = new Uint8Array(ciphertext)
-  const encryptedData = new Uint8Array(IV_LENGTH + cipherArray.length)
-  encryptedData.set(iv, 0)
-  encryptedData.set(cipherArray, IV_LENGTH)
-
-  return Array.from(encryptedData, (b) => b.toString(16).padStart(2, '0')).join('')
+function getKey(): Buffer {
+  const material = resolveKeyMaterial()
+  if (/^[0-9a-fA-F]{64}$/.test(material)) {
+    return Buffer.from(material, 'hex')
+  }
+  return createHash('sha256').update(material, 'utf8').digest()
 }
 
-export async function decrypt(encryptedHex: string): Promise<string> {
-  const key = await getCryptoKey()
-  const encryptedData = new Uint8Array(
-    encryptedHex.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16))
-  )
+function toHex(buffer: Buffer): string {
+  return buffer.toString('hex')
+}
 
-  if (encryptedData.length < IV_LENGTH + TAG_LENGTH) {
-    throw new Error('Invalid encrypted data: too short')
+function fromHex(hex: string, label: string): Buffer {
+  if (!/^[0-9a-fA-F]*$/.test(hex) || hex.length % 2 !== 0) {
+    throw new Error(`Malformed ${label}: expected hex characters`)
+  }
+  return Buffer.from(hex, 'hex')
+}
+
+/** Test seam — forces the next call to re-read configuration. */
+export function resetKeyCache(): void {
+  cachedKey = null
+}
+
+export function encrypt(plaintext: string): string {
+  const key = cachedKey ?? (cachedKey = getKey())
+  const iv = randomBytes(IV_BYTES)
+
+  const cipher = createCipheriv(ALGORITHM, key, iv)
+  const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
+  const authTag = cipher.getAuthTag()
+
+  return `${toHex(iv)}:${toHex(authTag)}:${toHex(ciphertext)}`
+}
+
+export function decrypt(payload: string): string {
+  const parts = payload.split(':')
+  if (parts.length !== 3) {
+    throw new Error('Malformed ciphertext: expected iv:authTag:ciphertext')
   }
 
-  const iv = encryptedData.slice(0, IV_LENGTH)
-  const ciphertext = encryptedData.slice(IV_LENGTH)
+  const [ivHex, authTagHex, ciphertextHex] = parts
+  const iv = fromHex(ivHex, 'iv')
+  const authTag = fromHex(authTagHex, 'authTag')
+  const ciphertext = fromHex(ciphertextHex, 'ciphertext')
 
-  const plaintext = await crypto.subtle.decrypt(
-    { name: ALGORITHM, iv },
-    key,
-    ciphertext
-  )
+  if (iv.length !== IV_BYTES) {
+    throw new Error(`Malformed iv: expected ${IV_BYTES} bytes, got ${iv.length}`)
+  }
+  if (authTag.length !== TAG_BYTES) {
+    throw new Error(`Malformed authTag: expected ${TAG_BYTES} bytes, got ${authTag.length}`)
+  }
 
-  const decoder = new TextDecoder()
-  return decoder.decode(plaintext)
+  const key = cachedKey ?? (cachedKey = getKey())
+
+  const decipher = createDecipheriv(ALGORITHM, key, iv)
+  decipher.setAuthTag(authTag)
+
+  try {
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8')
+  } catch {
+    throw new Error('Decryption failed: wrong key or tampered ciphertext')
+  }
+}
+
+/** Constant-time comparison for secrets. */
+export function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf8')
+  const bufB = Buffer.from(b, 'utf8')
+  if (bufA.length !== bufB.length) return false
+  return timingSafeEqual(bufA, bufB)
 }
