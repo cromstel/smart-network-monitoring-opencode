@@ -28,3 +28,9 @@ test-results/
 # logs
 *.log
 npm-debug.log*
+
+# project documentation — kept locally, deliberately untracked.
+# The perf and soak harnesses still write doc/PERFORMANCE.md and doc/SOAK.md,
+# and CI publishes them as artifacts, but the markdown itself is not versioned.
+# Anchored with a leading slash so a nested doc/ elsewhere is unaffected.
+/doc/

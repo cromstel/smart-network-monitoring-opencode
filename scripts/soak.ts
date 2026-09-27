@@ -27,7 +27,7 @@
  *         SOAK_MINUTES=1440 npm run soak    # the actual 24-hour release run
  */
 
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 
@@ -532,6 +532,8 @@ async function main(): Promise<void> {
   })
 
   const outputPath = path.resolve(process.cwd(), 'doc/SOAK.md')
+  // doc/ is untracked, so a fresh clone will not have it.
+  await mkdir(path.dirname(outputPath), { recursive: true })
   await writeFile(outputPath, report, 'utf8')
 
   console.log('')

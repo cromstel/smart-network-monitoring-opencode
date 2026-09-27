@@ -58,19 +58,9 @@ jobs:
           SESSION_SECRET: soak-session-secret-not-for-production-000000
           ENCRYPTION_KEY: soak-encryption-key-not-for-production-00000000
 
-      - name: Commit the report on the default branch
-        if: github.ref == 'refs/heads/main' && github.event_name == 'schedule'
-        run: |
-          if git diff --quiet -- doc/SOAK.md; then
-            echo "SOAK.md unchanged"
-            exit 0
-          fi
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add doc/SOAK.md
-          git commit -m "chore(soak): record nightly soak result"
-          git push
-
+      # doc/ is deliberately untracked, so the report is published as an
+      # artifact rather than committed back. A commit here would fail
+      # permanently: the path is gitignored.
       - name: Upload the report
         if: always()
         uses: actions/upload-artifact@v4
@@ -78,3 +68,17 @@ jobs:
           name: soak-report
           path: doc/SOAK.md
           retention-days: 30
+
+      - name: Upload the summary to the job
+        if: always()
+        run: |
+          {
+            echo "## Soak result"
+            echo ""
+            echo "- Duration: ${{ github.event.inputs.minutes || 1440 }} minutes"
+            echo "- Branch: \`${GITHUB_REF_NAME}\`"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Conclusion: **${{ job.status }}**"
+            echo ""
+            echo "Full trace in the \`soak-report\` artifact."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -16,7 +16,7 @@
  * Usage:  DB_FILE=./data/perf.db npm run perf
  */
 
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 
@@ -307,6 +307,8 @@ async function main(): Promise<void> {
   })
 
   const outputPath = path.resolve(process.cwd(), 'doc/PERFORMANCE.md')
+  // doc/ is untracked, so a fresh clone will not have it.
+  await mkdir(path.dirname(outputPath), { recursive: true })
   await writeFile(outputPath, report, 'utf8')
 
   logger.info({ report: outputPath }, 'performance report written')
