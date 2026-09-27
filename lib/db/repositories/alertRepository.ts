@@ -43,9 +43,10 @@ interface AlertRow {
   device_id: string | null
   alert_type: string
   threshold: number | null
-  is_active: number
+  // SQLite is opened with defaultSafeIntegers, so these arrive as bigint.
+  is_active: number | bigint
   last_triggered: string | null
-  trigger_count: number
+  trigger_count: number | bigint
   created_at: string
   updated_at: string
 }
@@ -59,7 +60,7 @@ interface NotificationRow {
   message: string
   type: string
   priority: string
-  is_read: number
+  is_read: number | bigint
   read_at: string | null
   data: string | null
   created_at: string
@@ -72,9 +73,10 @@ function rowToAlert(row: AlertRow): DeviceAlertRule {
     deviceId: row.device_id,
     alertType: toAlertType(row.alert_type),
     threshold: row.threshold,
-    isActive: row.is_active === 1,
+    // `=== 1` is false for a bigint, so compare numerically.
+    isActive: Number(row.is_active) === 1,
     lastTriggered: row.last_triggered ? new Date(row.last_triggered) : null,
-    triggerCount: row.trigger_count,
+    triggerCount: Number(row.trigger_count),
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   }
@@ -90,7 +92,7 @@ function rowToNotification(row: NotificationRow): Notification {
     message: row.message,
     type: toNotificationType(row.type),
     priority: toPriority(row.priority),
-    isRead: row.is_read === 1,
+    isRead: Number(row.is_read) === 1,
     readAt: row.read_at ? new Date(row.read_at) : null,
     data: row.data,
     createdAt: new Date(row.created_at),

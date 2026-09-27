@@ -1,0 +1,37 @@
+{
+  "//": [
+    "ts-jest reads `paths` from tsconfig and applies it in addition to Jest's",
+    "moduleNameMapper. Having both mangles module identity on Windows — the same",
+    "file gets loaded twice (once by relative path, once by alias) and coverage",
+    "records paths like `lib/services/file:\\C:\\...\\lib/services/alertService.ts`,",
+    "which then crashes the lcov reporter. So this config deliberately declares",
+    "no `baseUrl` and no `paths`: Jest's moduleNameMapper resolves `@/` alone."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "incremental": false,
+    "jsx": "react-jsx",
+    "types": ["node", "jest"]
+  },
+  "include": [
+    "next-env.d.ts",
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "instrumentation.ts"
+  ],
+  "exclude": ["node_modules", ".next"]
+}
