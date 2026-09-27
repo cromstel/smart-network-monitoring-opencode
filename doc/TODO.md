@@ -166,29 +166,46 @@ When you finish a task: tick it, and if it changed a decision, add a line to `ME
   - 85% statements and lines on `lib/services` and `lib/utils`; the threshold
     is enforced and verified to fail the build
 - [x] **B-62 — CI pipeline** (M)
-  - type-check · build · SQLite suite · MySQL suite · E2E
-- [ ] **B-63 — Performance pass** (M)
-  - Every PRD §5 target is unmeasured. Nothing in the suite asserts the
-    30-day query budget or the /24 scan time. `doc/PERFORMANCE.md` does not
-    exist yet
-- [ ] **B-64 — 24-hour soak** (M)
-  - No memory-growth or unhandled-rejection evidence
+  - type-check · build · SQLite suite · MySQL suite · performance · E2E
+- [x] **B-63 — Performance pass** (M) — **partially evidenced**
+  - `scripts/perf.ts` + `scripts/perfDataset.ts` measure against a real
+    100-device, 288,000-sample database and exit non-zero on a miss. CI runs it
+    as a gate. Results: `doc/PERFORMANCE.md`.
+  - Measured: 30-day history query, scan cycle, device list, stats fan-out.
+  - **Still not measured:** first contentful paint (needs a browser — belongs
+    to Playwright) and the real ARP `/24` probe (needs `CAP_NET_RAW` and a live
+    subnet). The application-side scan budget is measured; the network-side
+    budget is not.
+- [~] **B-64 — 24-hour soak** (M) — **harness complete, 24h run pending**
+  - `scripts/soak.ts` runs real scan cycles, fits a least-squares heap trend,
+    and installs its own `unhandledRejection` / `uncaughtException` traps
+    because test runners and CI both swallow those by default.
+  - All three gates were **observed failing** via fault injection
+    (`SOAK_FAULT=rejection|memory`), so the detectors are known to work rather
+    than assumed to. A clean 5-minute run: 100 scan cycles, 0.1% heap
+    retained, 0 rejections — `doc/SOAK.md`.
+  - The 24-hour run itself has not happened. `.github/workflows/soak.yml`
+    runs it nightly and commits the result, so the evidence now accumulates on
+    its own; this line closes when that workflow has a green run on record.
 - [x] **B-65 — Deployment docs** (M)
   - `doc/DEPLOYMENT.md`, `doc/TROUBLESHOOTING.md`, `Dockerfile`, Compose
 - [ ] **B-66 — Release checklist** (S)
-  - Remaining PRD §7 gaps: B-63, B-64, and the ASUS client test
+  - Remaining PRD §7 gaps: the 24-hour soak run and the Playwright execution
 
 ---
 
 ## Known follow-ups
 
-- **Rotate the leaked MySQL credential.** A `.env local` file containing a live
-  password was committed in `9706a83` and removed in `94e4918`. Git history
-  still contains it; only rotation actually closes the exposure.
-- **ASUS scanner HTTP client is untested.** Logic is sound but unexercised.
-- **`scanWith` in `scanJob.ts` is unused** outside tests — either adopt it or
-  remove it.
+- **The leaked MySQL credential has been purged from history** and the `.gitignore`
+  glob fixed. The password was `April--2024!!!!`; it was removed with
+  `git filter-repo --path ".env .local" --invert-paths` and the rewritten history
+  force-pushed. **`DB_PASSWORD` must still be rotated** — the value is public in
+  the repository's history on GitHub's servers and on any clone made before the
+  rewrite, and rewriting history is not a substitute for rotation.
+- **ASUS scanner HTTP client** now has 11 tests (`asusScanner.test.ts`).
 - **Multi-instance deployments need a shared rate-limit store.** The current
   store is in-process, so limits are per container.
 - **CSRF** is mitigated by `sameSite=lax` rather than by a token. Adequate for
   a single-origin dashboard; revisit if the API is ever called cross-site.
+- **The overview page (B-43) is still unbuilt.** The dashboard opens on the
+  device table; the totals, throughput and top-consumer tiles are not there.

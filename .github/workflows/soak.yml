@@ -1,0 +1,80 @@
+name: Soak
+
+# PRD §7 requires a 24-hour soak with no memory growth and no unhandled
+# rejection. That cannot be asserted inside a pull request — it takes a day —
+# so it runs nightly here and publishes the result. A developer does not have
+# to remember to run it, and the evidence accumulates in the repository's
+# artefacts rather than in somebody's terminal scrollback.
+on:
+  schedule:
+    # 03:17 UTC nightly. Deliberately not on the hour: every scheduled workflow
+    # in the world fires at :00, and the queue delays are nobody's problem.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: 'Soak duration in minutes'
+        required: false
+        default: '60'
+
+concurrency:
+  group: soak
+  cancel-in-progress: false
+
+jobs:
+  soak:
+    name: Memory soak (${{ github.event.inputs.minutes || 1440 }} min)
+    # 26h covers the 24h run plus image setup and the report upload.
+    timeout-minutes: 1560
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Prepare the soak database
+        run: |
+          rm -f ./data/soak.db
+          DB_CLIENT=sqlite DB_FILE=./data/soak.db npm run db:migrate
+        env:
+          SESSION_SECRET: soak-session-secret-not-for-production-000000
+          ENCRYPTION_KEY: soak-encryption-key-not-for-production-00000000
+
+      # NODE_OPTIONS carries --expose-gc, without which the harness refuses to
+      # report a pass: heap readings would be dominated by uncollected garbage.
+      - name: Run soak
+        run: npm run soak
+        env:
+          NODE_OPTIONS: --expose-gc
+          SOAK_MINUTES: ${{ github.event.inputs.minutes || '1440' }}
+          SOAK_SAMPLE_MS: '60000'
+          SOAK_SCAN_MS: '30000'
+          SESSION_SECRET: soak-session-secret-not-for-production-000000
+          ENCRYPTION_KEY: soak-encryption-key-not-for-production-00000000
+
+      - name: Commit the report on the default branch
+        if: github.ref == 'refs/heads/main' && github.event_name == 'schedule'
+        run: |
+          if git diff --quiet -- doc/SOAK.md; then
+            echo "SOAK.md unchanged"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add doc/SOAK.md
+          git commit -m "chore(soak): record nightly soak result"
+          git push
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-report
+          path: doc/SOAK.md
+          retention-days: 30

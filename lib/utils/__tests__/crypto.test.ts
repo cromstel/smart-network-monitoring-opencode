@@ -1,4 +1,4 @@
-﻿import { hashPassword, verifyPassword, hashTokenAsync, generateToken } from '../crypto'
+import { hashPassword, verifyPassword, hashTokenAsync, generateToken } from '../crypto'
 
 // bcrypt cost 12 is deliberately expensive (PRD F-60): a single hash takes
 // seconds on modest hardware. Two hashes plus verifications blow past Jest's

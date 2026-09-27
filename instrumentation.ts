@@ -1,4 +1,4 @@
-﻿import cron, { type ScheduledTask } from 'node-cron'
+import cron, { type ScheduledTask } from 'node-cron'
 import { getConfig } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
 import { scanOnce } from '@/lib/services/scanJob'
@@ -40,7 +40,7 @@ function state(): SchedulerState {
 
 /**
  * Scanning uses a self-rescheduling timer rather than a cron expression.
- * `SCAN_INTERVAL_SECONDS` is configurable over 30â€“3600, and cron cannot express
+ * `SCAN_INTERVAL_SECONDS` is configurable over 30–3600, and cron cannot express
  * an interval that does not divide 60 (e.g. 45s). A timer handles every value.
  */
 function scheduleScan(): void {

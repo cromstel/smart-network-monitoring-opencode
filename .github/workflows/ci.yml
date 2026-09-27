@@ -114,6 +114,44 @@ jobs:
           SESSION_SECRET: ci-session-secret-not-for-production-use-0000
           ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
 
+  performance:
+    name: Performance (PRD §5)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the performance dataset
+        # 100 devices, 30 days of history at 15-minute resolution — the load
+        # the PRD §5 targets are written against.
+        run: npm run perf:dataset
+        env:
+          SESSION_SECRET: perf-session-secret-not-for-production-000000
+          ENCRYPTION_KEY: perf-encryption-key-not-for-production-00000000
+
+      # Exits non-zero if any p95 misses its target, so a regression in query
+      # cost blocks a merge instead of quietly eroding the numbers in the report.
+      - name: Measure against the PRD §5 targets
+        run: npm run perf
+        env:
+          SESSION_SECRET: perf-session-secret-not-for-production-000000
+          ENCRYPTION_KEY: perf-encryption-key-not-for-production-00000000
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: doc/PERFORMANCE.md
+          retention-days: 7
+
   e2e:
     name: End-to-end (Playwright)
     runs-on: ubuntu-latest
