@@ -4,14 +4,19 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { DeviceTable } from '@/components/DeviceTable'
-import type { Device, DeviceNetworkStats, EnrichedDevice } from '@/lib/types'
+import type { DeviceDTO } from '@/lib/api/serialisers'
 
 jest.mock('@/lib/utils/cn', () => ({
   cn: (...parts: unknown[]) => parts.filter(Boolean).join(' '),
 }))
 
-function makeDevice(overrides: Partial<Device> = {}): EnrichedDevice {
-  const device: Device = {
+// Fixtures are DeviceDTOs, not the EnrichedDevice aggregate, because that is
+// what the API returns. These tests previously built EnrichedDevice objects and
+// passed them straight through, so the component and its fixtures agreed with
+// each other while both disagreed with the real response. That is how the
+// dashboard shipped a page that threw on every render.
+function makeDevice(overrides: Partial<DeviceDTO> = {}): DeviceDTO {
+  return {
     id: 'dev-1',
     macAddress: 'A4:83:E7:2C:11:09',
     ipAddress: '192.168.1.42',
@@ -22,29 +27,24 @@ function makeDevice(overrides: Partial<Device> = {}): EnrichedDevice {
     signalStrength: -52,
     status: 'online',
     isBlocked: false,
-    isIgnored: false,
     totalConnectionTimeSeconds: 3600,
-    categoryId: null,
-    firstSeen: new Date('2026-09-01T10:00:00Z'),
-    lastSeen: new Date('2026-09-24T10:00:00Z'),
-    createdAt: new Date('2026-09-01T10:00:00Z'),
-    updatedAt: new Date('2026-09-24T10:00:00Z'),
+    firstSeen: '2026-09-01T10:00:00.000Z',
+    lastSeen: '2026-09-24T10:00:00.000Z',
+    currentBandwidth: { uploadMbps: 0, downloadMbps: 0 },
+    totalTransferred: { uploadBytes: '0', downloadBytes: '0' },
     ...overrides,
   }
-
-  return { device, network: null }
 }
 
-function withNetwork(device: Device, stats: Partial<DeviceNetworkStats>): EnrichedDevice {
-  const network: DeviceNetworkStats = {
-    lastSeenAt: new Date('2026-09-24T10:00:00Z'),
-    uploadMbps: 0,
-    downloadMbps: 0,
-    uploadBytes: '0',
-    downloadBytes: '0',
-    ...stats,
+function withNetwork(device: DeviceDTO, stats: Partial<DeviceDTO['currentBandwidth']>): DeviceDTO {
+  return {
+    ...device,
+    currentBandwidth: {
+      uploadMbps: 0,
+      downloadMbps: 0,
+      ...stats,
+    },
   }
-  return { device, network }
 }
 
 describe('DeviceTable', () => {
@@ -77,15 +77,19 @@ describe('DeviceTable', () => {
     expect(screen.getByText('Unknown')).toBeInTheDocument()
   })
 
-  it('shows an em dash when there are no bandwidth samples', () => {
+  it('shows zero throughput for a device with no samples', () => {
     render(<DeviceTable data={[makeDevice()]} />)
-    // Download and Upload cells both have no data.
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2)
+    // The DTO cannot distinguish "no samples" from "zero": toDeviceDTO
+    // serialises a missing network aggregate as 0, so both columns read
+    // 0.00 Mbps. Previously the component received `network: null` from a
+    // domain object and rendered an em dash instead. Zero is the honest
+    // display here — a device with no recent traffic did transfer nothing.
+    expect(screen.getAllByText('0.00 Mbps').length).toBeGreaterThanOrEqual(2)
   })
 
   it('formats throughput when samples exist', () => {
     const data = [
-      withNetwork(makeDevice().device, { downloadMbps: 12.44, uploadMbps: 1.5 }),
+      withNetwork(makeDevice(), { downloadMbps: 12.44, uploadMbps: 1.5 }),
     ]
 
     render(<DeviceTable data={data} />)
@@ -104,7 +108,7 @@ describe('DeviceTable', () => {
     render(<DeviceTable data={data} />)
     expect(screen.getByText('Synology NAS')).toBeInTheDocument()
 
-    await user.type(screen.getByPlaceholderText('Search devices...'), 'synology')
+    await user.type(screen.getByLabelText('Filter the rows on this page'), 'synology')
 
     expect(screen.queryByText("Ana's iPhone")).not.toBeInTheDocument()
     expect(screen.getByText('Synology NAS')).toBeInTheDocument()
@@ -114,7 +118,7 @@ describe('DeviceTable', () => {
     const user = userEvent.setup()
     render(<DeviceTable data={[makeDevice()]} />)
 
-    await user.type(screen.getByPlaceholderText('Search devices...'), 'zzzznomatch')
+    await user.type(screen.getByLabelText('Filter the rows on this page'), 'zzzznomatch')
 
     expect(screen.getByText('No matching devices')).toBeInTheDocument()
   })
@@ -175,7 +179,7 @@ describe('DeviceTable', () => {
     await user.click(screen.getByText("Ana's iPhone"))
 
     expect(onRowClick).toHaveBeenCalledTimes(1)
-    expect(onRowClick.mock.calls[0]![0].device.id).toBe('dev-1')
+    expect(onRowClick.mock.calls[0]![0].id).toBe('dev-1')
   })
 
   it('renders an empty state with no data', () => {

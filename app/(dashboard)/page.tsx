@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@radix-ui/react-select'
 import { ChevronUp, ChevronDown } from 'lucide-react'
+import type { DeviceDTO } from '@/lib/api/serialisers'
 
 export default function DashboardPage() {
   const [search, setSearch] = useState('')
@@ -30,8 +31,8 @@ export default function DashboardPage() {
     order: order as 'asc' | 'desc' | undefined,
   })
 
-  const handleRowClick = (device: { device: { id: string } }) => {
-    window.location.href = `/devices/${device.device.id}`
+  const handleRowClick = (device: DeviceDTO) => {
+    window.location.href = `/devices/${device.id}`
   }
 
   return (
@@ -103,7 +104,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <DeviceTable
-            data={data?.data || []}
+            data={data || []}
             isLoading={isLoading}
             isError={isError}
             error={error}

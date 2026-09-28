@@ -15,8 +15,10 @@ test.describe('device history', () => {
 
     // Recharts renders an accessible figure once it has data.
     await expect(page.locator('.recharts-wrapper')).toBeVisible({ timeout: 20_000 })
-    await expect(page.getByText('Download')).toBeVisible()
-    await expect(page.getByText('Upload')).toBeVisible()
+    // Exact, because the totals cards below read "Total Downloaded"/"Total
+    // Uploaded" and a substring match resolves to those instead of the legend.
+    await expect(page.getByText('Download', { exact: true })).toBeVisible()
+    await expect(page.getByText('Upload', { exact: true })).toBeVisible()
   })
 
   test('switches the time range without erroring', async ({ page }) => {
@@ -41,13 +43,17 @@ test.describe('device history', () => {
     await expect(page.getByText('Last Seen')).toBeVisible()
   })
 
-  test('reports a missing device rather than rendering an empty panel', async ({
-    page,
-  }, testInfo) => {
-    // Skip the negative path only where the app is expected to 404 cleanly.
-    test.skip(testInfo.project.name !== 'chromium', 'chromium only')
+  test('reports a missing device rather than rendering an empty panel', async ({ page }) => {
+    // Fetched from inside the page rather than via page.request: the session
+    // cookie is Secure under NODE_ENV=production and a separate request context
+    // will not replay it over plain http, so the call was redirected to the
+    // login page and reported 200 for what is really a 404.
+    const result = await page.evaluate(async () => {
+      const res = await fetch('/api/devices/00000000-0000-4000-8000-000000009999')
+      return { status: res.status, ct: res.headers.get('content-type') }
+    })
 
-    const response = await page.request.get('/api/devices/00000000-0000-4000-8000-000000009999')
-    expect(response.status()).toBe(404)
+    expect(result.status).toBe(404)
+    expect(result.ct).toContain('application/json')
   })
 })

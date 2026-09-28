@@ -14,6 +14,14 @@ export const ADMIN_PASSWORD = 'E2e-Admin-Pass-2026'
 
 export const test = base.extend<{ page: Page }>({
   page: async ({ page }, use) => {
+    // Uncaught exceptions in the page are the loudest signal available when a
+    // screen renders "Application error: a client-side exception has occurred"
+    // and nothing else in the trace says why. Playwright reports those as
+    // test failures but not as console messages, so without this hook a real
+    // runtime error is invisible in the output.
+    page.on('pageerror', (err) => {
+      console.error(`[pageerror] ${err.message}\n${err.stack ?? ''}`)
+    })
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
         // Surface browser errors in the trace; do not fail the run on them,

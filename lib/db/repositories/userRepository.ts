@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { db } from '../client'
+import { toBool } from './mappers'
 import type { DB } from '../schema'
 import type { User, Session, CreateUserInput, UserPatch } from '@/lib/types/user'
 import { hashPassword, verifyPassword } from '@/lib/utils/crypto'
@@ -183,7 +184,7 @@ function mapRowToUser(row: { id: string; email: string; password_hash: string; n
     email: row.email,
     name: row.name,
     role: row.role as User['role'],
-    isActive: row.is_active === 1,
+    isActive: toBool(row.is_active),
     lastLoginAt: row.last_login_at ? new Date(row.last_login_at) : null,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),

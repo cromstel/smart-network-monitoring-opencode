@@ -80,6 +80,15 @@ export function eventBus() {
       return () => handlers.delete(handler)
     },
 
+    /**
+     * Current subscriber count. Exists to make listener leaks observable:
+     * a per-connection subscription that is never released grows this set for
+     * the life of the process, and nothing else in the system would reveal it.
+     */
+    listenerCount(): number {
+      return handlers.size
+    },
+
     clear(): void {
       handlers.clear()
     },

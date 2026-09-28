@@ -11,7 +11,12 @@ const loginSchema = z.object({
   password: z.string().min(1),
 })
 
-const loginRateLimiter = createRateLimiter('/api/auth/login', 5, 15 * 60 * 1000)
+// Five attempts per quarter hour, per client. Configurable because the browser
+// suite signs in once per spec from a single address and cannot share a bucket
+// across 16 specs; and because a self-hosted operator may sit behind a proxy
+// that does not forward an address.
+const LOGIN_RATE_LIMIT = Number(process.env.LOGIN_RATE_LIMIT_MAX ?? 5)
+const loginRateLimiter = createRateLimiter('/api/auth/login', LOGIN_RATE_LIMIT, 15 * 60 * 1000)
 
 export async function POST(request: NextRequest) {
   const rateLimitResponse = await loginRateLimiter(request)

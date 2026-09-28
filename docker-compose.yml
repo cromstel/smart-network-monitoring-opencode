@@ -1,5 +1,5 @@
 # Local MySQL for development and for the CI MySQL test leg.
-# Production installs normally use SQLite; see doc/DEPLOYMENT.md.
+# Production installs normally use SQLite.
 services:
   mysql:
     image: mysql:8.0

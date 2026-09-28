@@ -23,7 +23,11 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: `npm run start -- --port ${PORT}`,
+        // Reset and seed BEFORE `next start`. The server opens the SQLite file
+        // on first query and then holds it, so a reset performed during test
+        // setup is both too late and, on Windows, impossible. See
+        // scripts/reset-e2e-db.mjs.
+        command: `npm run db:reset:e2e && npm run db:seed:e2e && npm run start -- --port ${PORT}`,
         url: `${baseURL}/api/health`,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
@@ -35,6 +39,19 @@ export default defineConfig({
           SCAN_INTERVAL_SECONDS: '30',
           LOG_LEVEL: 'warn',
           ENABLE_DB_MIGRATIONS_ON_BOOT: 'true',
+          // Every spec signs in, all from one address, so the production limit
+          // of five attempts per quarter hour would fail the suite on the sixth
+          // test. This raises it for the throwaway test server only.
+          LOGIN_RATE_LIMIT_MAX: '500',
+          // `next start` implies NODE_ENV=production, and the app refuses to
+          // boot in production without these two. Supplying throwaway values
+          // here keeps `npm run test:e2e` working on a clean checkout instead
+          // of failing with an unrelated-looking crypto error. CI overrides
+          // them with its own. Test-only, never a real secret.
+          SESSION_SECRET:
+            process.env.SESSION_SECRET ?? 'e2e-session-secret-not-for-production-000000',
+          ENCRYPTION_KEY:
+            process.env.ENCRYPTION_KEY ?? 'e2e-encryption-key-not-for-production-0000000000',
         },
       },
 })

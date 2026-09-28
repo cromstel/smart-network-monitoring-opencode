@@ -1,0 +1,7 @@
+# A CRLF line ending after a shebang makes the kernel fail to find the
+# interpreter, so "no such file or directory" is the only error you get. This
+# repo is developed on Windows with core.autocrlf=true, which means the
+# working copy gets CRLF unless told otherwise. The pre-commit guard is a
+# POSIX shell script, so it is pinned to LF everywhere.
+*.sh text eol=lf
+scripts/git-hooks/pre-commit text eol=lf

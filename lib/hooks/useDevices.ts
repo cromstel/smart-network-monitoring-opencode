@@ -1,7 +1,8 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import type { EnrichedDevice, DeviceFilters, Pagination } from '@/lib/types'
+import type { DeviceFilters, Pagination } from '@/lib/types'
+import type { DeviceDTO } from '@/lib/api/serialisers'
 
 interface UseDevicesOptions extends DeviceFilters {
   pagination?: Pagination
@@ -26,10 +27,13 @@ export function useDevices(options: UseDevicesOptions = {}) {
       if (!response.ok) {
         throw new Error('Failed to fetch devices')
       }
-      return response.json() as Promise<{
-        data: EnrichedDevice[]
-        pagination: Pagination
-      }>
+      // The API serialises through toDeviceDTO, which flattens the
+      // EnrichedDevice aggregate. Consuming the domain shape here instead of
+      // the DTO is what previously crashed the dashboard: the component read
+      // device.device.lastSeen, `device.device` was undefined, and every page
+      // render threw.
+      const body = (await response.json()) as { data: DeviceDTO[]; pagination: Pagination }
+      return body.data
     },
     staleTime: 5_000,
   })
@@ -45,7 +49,8 @@ export function useDeviceById(id: string | null) {
         if (response.status === 404) return null
         throw new Error('Failed to fetch device')
       }
-      return response.json() as Promise<EnrichedDevice | null>
+      const body = (await response.json()) as { data: DeviceDTO }
+      return body.data
     },
     enabled: !!id,
     staleTime: 5 * 60 * 1000,

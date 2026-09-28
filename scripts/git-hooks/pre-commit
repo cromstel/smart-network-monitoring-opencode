@@ -1,0 +1,41 @@
+#!/bin/sh
+# Block any commit that stages a real environment file.
+#
+# .gitignore already excludes these, but an ignore rule is only as reliable
+# as the file containing it: this repository had its .gitignore working copy
+# silently reverted from the .env* glob to a literal .env / .env.* pair, after
+# which a file holding a live MySQL password was both untracked AND unignored.
+# A plain `git add .` at that moment would have committed it. This hook makes
+# the check independent of .gitignore being correct.
+#
+# .env.example is the documented template and is meant to be committed.
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+if [ -z "$staged" ]; then
+    exit 0
+fi
+
+# Strip one level of quoting/renames and check each path.
+bad=""
+for path in $staged; do
+    base=$(basename "$path")
+    case "$base" in
+        .env.example|.env.example.*)
+            ;;
+        .env|.env.*|.env*)
+            bad="$bad
+  $path"
+            ;;
+    esac
+done
+
+if [ -n "$bad" ]; then
+    echo "Refusing to commit: environment file(s) staged.$bad" >&2
+    echo "" >&2
+    echo "These carry credentials. Unstage them with:" >&2
+    echo "    git restore --staged <path>" >&2
+    echo "If a file genuinely belongs in the repo, it should be .env.example." >&2
+    exit 1
+fi
+
+exit 0

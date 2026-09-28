@@ -20,7 +20,13 @@ function toDate(value: string | Date | null): Date | null {
   return value instanceof Date ? value : new Date(value)
 }
 
-function toBool(value: number | bigint): boolean {
+/**
+ * SQLite returns integer columns as bigint, MySQL as number, so a strict
+ * `value === 1` silently reads every flag as false (`1n !== 1`). Exported so
+ * every repository shares one implementation rather than each re-deriving the
+ * coercion and getting it subtly wrong.
+ */
+export function toBool(value: number | bigint): boolean {
   return Number(value) === 1
 }
 

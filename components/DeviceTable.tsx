@@ -10,27 +10,30 @@ import {
 } from '@radix-ui/react-select'
 import { Search, ChevronUp, ChevronDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
-import type { EnrichedDevice } from '@/lib/types'
+import type { DeviceDTO } from '@/lib/api/serialisers'
 
 interface DeviceTableProps {
-  data: EnrichedDevice[]
+  data: DeviceDTO[]
   isLoading?: boolean
   isError?: boolean
   error?: Error | null
-  onRowClick?: (device: EnrichedDevice) => void
+  onRowClick?: (device: DeviceDTO) => void
 }
 
-type SortField = keyof EnrichedDevice['device'] | 'download_speed' | 'upload_speed' | 'last_seen'
+// Sort keys are DTO field names plus the two bandwidth columns, which live
+// under currentBandwidth rather than at the top level.
+type SortField = keyof DeviceDTO | 'download' | 'upload'
 type SortDirection = 'asc' | 'desc'
 
-function getDeviceValue(device: EnrichedDevice, field: SortField): string | number {
-  if (field === 'download_speed' || field === 'upload_speed') {
-    if (!device.network) return 0
-    const networkField = field === 'download_speed' ? 'downloadMbps' : 'uploadMbps'
-    return (device.network as any)[networkField] ?? 0
+function getDeviceValue(device: DeviceDTO, field: SortField): string | number {
+  if (field === 'download' || field === 'upload') {
+    return field === 'download' ? device.currentBandwidth.downloadMbps : device.currentBandwidth.uploadMbps
   }
-  const value = device.device[field as keyof typeof device.device]
-  return (value as string | number) ?? ''
+  const value = device[field]
+  // lastSeen/firstSeen are ISO strings; everything else is a scalar.
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'object') return ''
+  return value as string | number
 }
 
 function compareValues(a: string | number, b: string | number, direction: SortDirection): number {
@@ -50,8 +53,8 @@ const columns = [
   { id: 'name', header: 'Name', accessor: 'deviceName', size: 180 },
   { id: 'type', header: 'Type', accessor: 'deviceType', size: 100 },
   { id: 'manufacturer', header: 'Manufacturer', accessor: 'manufacturer', size: 150 },
-  { id: 'download', header: 'Download', accessor: 'download_speed', size: 120 },
-  { id: 'upload', header: 'Upload', accessor: 'upload_speed', size: 100 },
+  { id: 'download', header: 'Download', accessor: 'download', size: 120 },
+  { id: 'upload', header: 'Upload', accessor: 'upload', size: 100 },
   { id: 'status', header: 'Status', accessor: 'status', size: 90 },
   { id: 'lastSeen', header: 'Last Seen', accessor: 'lastSeen', size: 180 },
 ] as const
@@ -63,7 +66,7 @@ export function DeviceTable({
   error,
   onRowClick,
 }: DeviceTableProps) {
-  const [sortField, setSortField] = useState<SortField>('last_seen')
+  const [sortField, setSortField] = useState<SortField>('lastSeen')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [globalFilter, setGlobalFilter] = useState('')
   const [pageSize, setPageSize] = useState(25)
@@ -87,11 +90,11 @@ export function DeviceTable({
       const filter = globalFilter.toLowerCase()
       result = result.filter(
         (device) =>
-          device.device.macAddress.toLowerCase().includes(filter) ||
-          device.device.ipAddress.toLowerCase().includes(filter) ||
-          (device.device.deviceName || '').toLowerCase().includes(filter) ||
-          device.device.deviceType.toLowerCase().includes(filter) ||
-          (device.device.manufacturer || '').toLowerCase().includes(filter)
+          device.macAddress.toLowerCase().includes(filter) ||
+          device.ipAddress.toLowerCase().includes(filter) ||
+          (device.deviceName || '').toLowerCase().includes(filter) ||
+          device.deviceType.toLowerCase().includes(filter) ||
+          (device.manufacturer || '').toLowerCase().includes(filter)
       )
     }
 
@@ -156,17 +159,16 @@ export function DeviceTable({
     )
   }
 
-  const renderCell = (device: EnrichedDevice, column: { accessor: string; id: string }) => {
+  const renderCell = (device: DeviceDTO, column: { accessor: string; id: string }) => {
     const accessor = column.accessor as string
-    if (accessor === 'download_speed' || accessor === 'upload_speed') {
-      if (!device.network) return '—'
-      const networkField = accessor === 'download_speed' ? 'downloadMbps' : 'uploadMbps'
-      const speed = device.network[networkField as keyof typeof device.network]
+    if (accessor === 'download' || accessor === 'upload') {
+      const speed =
+        accessor === 'download' ? device.currentBandwidth.downloadMbps : device.currentBandwidth.uploadMbps
       if (speed === null || speed === undefined) return '—'
       return `${Number(speed).toFixed(2)} Mbps`
     }
     if (accessor === 'status') {
-      const status = device.device.status
+      const status = device.status
       return (
         <span
           className={cn(
@@ -181,13 +183,13 @@ export function DeviceTable({
       )
     }
     if (accessor === 'deviceName') {
-      return device.device.deviceName || '—'
+      return device.deviceName || '—'
     }
     if (accessor === 'manufacturer') {
-      return device.device.manufacturer || 'Unknown'
+      return device.manufacturer || 'Unknown'
     }
     if (accessor === 'deviceType') {
-      const type = device.device.deviceType
+      const type = device.deviceType
       return (
         <span className="inline-flex items-center rounded-full bg-slate-800 px-2.5 py-0.5 text-xs font-medium text-slate-300">
           {type}
@@ -195,12 +197,12 @@ export function DeviceTable({
       )
     }
     if (accessor === 'lastSeen') {
-      const date = device.device.lastSeen
+      const date = device.lastSeen
       if (!date) return '—'
       return new Date(date).toLocaleString()
     }
     // For simple accessors
-    const value = (device.device as any)[accessor]
+    const value = (device as unknown as Record<string, unknown>)[accessor]
     return value ?? '—'
   }
 
@@ -211,7 +213,8 @@ export function DeviceTable({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 h-4 w-4" />
           <input
             type="text"
-            placeholder="Search devices..."
+            aria-label="Filter the rows on this page"
+            placeholder="Filter this page"
             value={globalFilter}
             onChange={(e) => {
               setGlobalFilter(e.target.value)
@@ -271,7 +274,7 @@ export function DeviceTable({
             ) : (
               paginatedData.map((device) => (
                 <tr
-                  key={device.device.id}
+                  key={device.id}
                   className={cn(
                     'transition-colors',
                     onRowClick && 'cursor-pointer hover:bg-slate-800/50'
@@ -280,7 +283,7 @@ export function DeviceTable({
                 >
                   {columns.map((col) => (
                     <td key={col.id} className="px-4 py-3 text-sm text-slate-300">
-                      {renderCell(device, col)}
+                      {renderCell(device, col) as React.ReactNode}
                     </td>
                   ))}
                 </tr>

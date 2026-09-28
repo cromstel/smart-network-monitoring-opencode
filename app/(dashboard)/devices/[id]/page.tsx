@@ -60,7 +60,7 @@ export default function DeviceDetailPage() {
   const [range, setRange] = useState(24)
   const { data: bandwidth, isLoading: bandwidthLoading } = useDeviceBandwidth(deviceId, range)
 
-  const { isEditing, formData, setFormData, handleChange, handleSubmit, openEditDialog, closeEditDialog } = useDeviceForm(device)
+  const { isEditing, formData, setFormData, handleChange, handleSubmit, openEditDialog, closeEditDialog, handleOpenChange } = useDeviceForm(device)
 
   if (deviceLoading) {
     return (
@@ -98,14 +98,14 @@ export default function DeviceDetailPage() {
       <header className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">
-            {device.device.deviceName || device.device.macAddress}
+            {device.deviceName || device.macAddress}
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            MAC: {device.device.macAddress} · IP: {device.device.ipAddress}
-            {device.device.hostname && ` · Hostname: ${device.device.hostname}`}
+            MAC: {device.macAddress} · IP: {device.ipAddress}
+            {device.hostname && ` · Hostname: ${device.hostname}`}
           </p>
         </div>
-        <Dialog open={isEditing} onOpenChange={closeEditDialog}>
+        <Dialog open={isEditing} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
             <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 flex items-center gap-2">
               <Edit2 className="h-4 w-4" />
@@ -121,8 +121,9 @@ export default function DeviceDetailPage() {
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Device Name</label>
+                <label htmlFor="device-name" className="block text-sm font-medium text-slate-300 mb-1">Device Name</label>
                 <input
+                  id="device-name"
                   type="text"
                   name="deviceName"
                   value={formData.deviceName || ''}
@@ -131,9 +132,9 @@ export default function DeviceDetailPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Device Type</label>
+                <label id="device-type-label" className="block text-sm font-medium text-slate-300 mb-1">Device Type</label>
                 <Select value={formData.deviceType} onValueChange={(value) => setFormData((prev) => ({ ...prev, deviceType: value as DeviceType }))}>
-                  <SelectTrigger className="w-full bg-slate-800 border border-slate-700">
+                  <SelectTrigger aria-labelledby="device-type-label" className="w-full bg-slate-800 border border-slate-700">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -165,11 +166,11 @@ export default function DeviceDetailPage() {
               <span className="text-slate-400">Connection</span>
               <span className={cn(
                 'inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium',
-                device.device.status === 'online'
+                device.status === 'online'
                   ? 'bg-green-500/20 text-green-400'
                   : 'bg-slate-700 text-slate-400'
               )}>
-                {device.device.status === 'online' ? (
+                {device.status === 'online' ? (
                   <>
                     <Wifi className="h-4 w-4" />
                     Online
@@ -185,33 +186,33 @@ export default function DeviceDetailPage() {
             <div className="flex items-center justify-between">
               <span className="text-slate-400">Manufacturer</span>
               <span className="text-slate-300 font-medium">
-                {device.device.manufacturer || 'Unknown'}
+                {device.manufacturer || 'Unknown'}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-400">Type</span>
               <span className="inline-flex items-center rounded-full bg-slate-800 px-2.5 py-0.5 text-xs font-medium text-slate-300">
-                {device.device.deviceType}
+                {device.deviceType}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-400">Signal Strength</span>
               <span className="text-slate-300 font-medium">
-                {device.device.signalStrength !== null
-                  ? `${device.device.signalStrength} dBm`
+                {device.signalStrength !== null
+                  ? `${device.signalStrength} dBm`
                   : 'N/A'}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-400">First Seen</span>
               <span className="text-slate-300 font-medium">
-                {formatDate(device.device.firstSeen)}
+                {formatDate(device.firstSeen)}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-400">Last Seen</span>
               <span className="text-slate-300 font-medium">
-                {formatDate(device.device.lastSeen)}
+                {formatDate(device.lastSeen)}
               </span>
             </div>
           </div>
@@ -299,13 +300,13 @@ export default function DeviceDetailPage() {
             <div className="flex items-center justify-between">
               <span className="text-slate-400">Total Downloaded</span>
               <span className="text-slate-300 font-medium font-mono">
-                {device.network ? formatBytes(device.network.downloadBytes) : '—'}
+                {formatBytes(device.totalTransferred.downloadBytes)}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-400">Total Uploaded</span>
               <span className="text-slate-300 font-medium font-mono">
-                {device.network ? formatBytes(device.network.uploadBytes) : '—'}
+                {formatBytes(device.totalTransferred.uploadBytes)}
               </span>
             </div>
           </div>
