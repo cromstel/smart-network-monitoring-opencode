@@ -10,8 +10,12 @@ const envSchema = z.object({
   DB_FILE: z.string().default('./data/dev.db'),
   DB_HOST: z.string().default('localhost'),
   DB_PORT: z.coerce.number().int().min(1).max(65535).default(3306),
+  // Identity values, not secrets. Kept as defaults so a local MySQL works out
+  // of the box; both are overridden by the environment in any real deployment.
   DB_NAME: z.string().default('home_monitor'),
   DB_USER: z.string().default('monitor'),
+  // Never defaulted to a usable value. An empty default is the safe one, and
+  // production with DB_CLIENT=mysql now refuses to start without one.
   DB_PASSWORD: z.string().default(''),
   SESSION_SECRET: z.string(), 
   ENCRYPTION_KEY: z.string(),
@@ -49,6 +53,16 @@ function assertProductionSecretStrength(candidate: Record<string, unknown>, isPr
           `(generate with: openssl rand -hex ${MIN_SECRET_LENGTH})`
       )
     }
+  }
+
+  // DB_PASSWORD is the one secret that previously had no production guard. It
+  // defaults to '' because SQLite needs no password, so a production deploy
+  // that sets DB_CLIENT=mysql and forgets DB_PASSWORD started up, connected
+  // with an empty password, and failed at the first query with whatever the
+  // driver happened to say. Now it fails immediately, naming the variable.
+  const dbPassword = candidate.DB_PASSWORD
+  if (candidate.DB_CLIENT === 'mysql' && (typeof dbPassword !== 'string' || !dbPassword.trim())) {
+    problems.push('DB_PASSWORD is required in production when DB_CLIENT=mysql')
   }
 
   if (problems.length > 0) {

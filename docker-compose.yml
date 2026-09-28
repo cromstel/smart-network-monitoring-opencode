@@ -1,14 +1,22 @@
 # Local MySQL for development and for the CI MySQL test leg.
 # Production installs normally use SQLite.
+#
+# The MySQL credentials are required, not defaulted. This file previously
+# carried ${DB_PASSWORD:-monitor}, so a container started without a .env would
+# come up with a working password of "monitor" — the same word as the account
+# name, and the password this repository leaked before the history rewrite.
+# A default that is itself a credential is how that leak happened the first
+# time, so there is no fallback here. Put the values in .env (untracked) or
+# export them in the shell.
 services:
   mysql:
     image: mysql:8.0
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: ${DB_NAME:-home_monitor}
-      MYSQL_USER: ${DB_USER:-monitor}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-monitor}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_NAME:?set DB_NAME}
+      MYSQL_USER: ${DB_USER:?set DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD}
     ports:
       - "${DB_PORT:-3306}:3306"
     command:
@@ -17,7 +25,7 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_ROOT_PASSWORD:-root}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD}"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -43,7 +51,10 @@ services:
       DB_PORT: 3306
       DB_NAME: ${DB_NAME:-home_monitor}
       DB_USER: ${DB_USER:-monitor}
-      DB_PASSWORD: ${DB_PASSWORD:-monitor}
+      # No fallback, matching the mysql service above. ${DB_PASSWORD:-monitor}
+      # would quietly reintroduce a known password on a container started
+      # without a .env.
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
     ports:
       - "${APP_PORT:-3000}:3000"
     volumes:

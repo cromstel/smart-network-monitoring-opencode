@@ -102,3 +102,15 @@ export async function updateFromScan(
 ): Promise<void> {
   await deviceRepo.updateFromScan(id, ipAddress, hostname)
 }
+
+export async function fetchNetworkTotals() {
+  return bandwidthRepo.fetchNetworkTotals()
+}
+
+export async function fetchTodayPeak() {
+  return bandwidthRepo.fetchTodayPeak()
+}
+
+export async function fetchTopConsumers(limit?: number) {
+  return bandwidthRepo.fetchTopConsumers(limit)
+}
