@@ -5,7 +5,7 @@ import { logger } from '@/lib/utils/logger'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
   const cookieStore = await cookies()
   const sessionToken = cookieStore.get('session')?.value
 
@@ -49,13 +49,9 @@ export async function GET(): Promise<Response> {
         try {
           controller.enqueue(encoder.encode(data))
         } catch (error) {
-          // A client that closes the tab mid-write surfaces here as ECONNRESET.
-          // Letting the throw escape — from a timer, or from an event-bus emit —
-          // would become an uncaughtException and take the whole server down.
-          // The event bus swallows handler errors, but the keep-alive interval
-          // does not, which is why this guard is the only thing between a closed
-          // tab and a crashed process.
-          logger.debug({ error }, 'SSE client disconnected; releasing stream')
+          // The client vanished mid-write. Tearing down here stops the interval
+          // and the bus subscription, so nothing tries this socket again.
+          logger.debug({ error }, 'SSE write failed; releasing stream')
           teardown()
         }
       }
@@ -81,6 +77,30 @@ export async function GET(): Promise<Response> {
       teardown()
     },
   })
+
+  // React to the disconnect as soon as it happens, rather than waiting for the
+  // next write to fail.
+  //
+  // Wrapping enqueue() in try/catch is not enough on its own. The browser
+  // aborting the request does not raise a catchable error at the point of
+  // enqueue: it arrives later, asynchronously, from Node's HTTP layer as
+  //   uncaughtException: [Error: aborted] { code: 'ECONNRESET' }
+  // and there is no handler between that and the process, so the whole server
+  // dies. Any user closing the tab was enough to take the dashboard down, and
+  // that is what the E2E run kept tripping over.
+  //
+  // The abort signal fires first, so releasing the stream here means the
+  // socket is never written to again and the asynchronous error never fires.
+  if (request.signal) {
+    if (request.signal.aborted) {
+      teardown()
+    } else {
+      request.signal.addEventListener('abort', () => {
+        logger.debug('SSE client aborted; releasing stream')
+        teardown()
+      })
+    }
+  }
 
   return new Response(stream, {
     headers: {

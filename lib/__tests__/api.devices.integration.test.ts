@@ -2,7 +2,17 @@
  * End-to-end: migrations -> repositories -> service -> route handler -> JSON.
  * Covers AUDIT.md A-05: a byte counter above Number.MAX_SAFE_INTEGER must
  * reach the wire as an exact string, not a rounded number.
+ *
+ * The user and session ids below are real UUIDs, not readable placeholders like
+ * "test-user". `users.id` and `sessions.id` are declared `uuid`, and MySQL
+ * enforces that: it rejects the placeholder outright with "Incorrect uuid
+ * value", while SQLite stores any text in the same column. The readable ids were
+ * why this suite passed on SQLite and failed on MySQL for reasons that had
+ * nothing to do with what it is testing.
  */
+
+const TEST_USER_ID = '11111111-1111-4111-8111-111111111111'
+const TEST_SESSION_ID = '22222222-2222-4222-8222-222222222222'
 
 import { cookies } from 'next/headers'
 import { validateSession } from '@/lib/services/authService'
@@ -50,6 +60,20 @@ describe('GET /api/devices — BigInt serialisation', () => {
 
     const result = await createMigrator(db).migrateToLatest()
     expect(result.error).toBeUndefined()
+
+    // Clear anything a previous suite left behind. On SQLite each test file
+    // gets its own :memory: database and this is a no-op; against MySQL the
+    // whole run shares one database, so without this the device count below
+    // picks up rows from other suites and fails for reasons unrelated to what
+    // it is asserting. Deletion order respects the foreign keys.
+    for (const table of [
+      'connection_logs',
+      'bandwidth_hourly',
+      'bandwidth_metrics',
+      'devices',
+    ] as const) {
+      await db.deleteFrom(table).execute()
+    }
 
     await db
       .insertInto('devices')
@@ -101,7 +125,7 @@ describe('GET /api/devices — BigInt serialisation', () => {
     await db
       .insertInto('users')
       .values({
-        id: 'test-user',
+        id: TEST_USER_ID,
         email: 'test@example.com',
         password_hash: 'hash',
         name: 'Test User',
@@ -116,8 +140,8 @@ describe('GET /api/devices — BigInt serialisation', () => {
     await db
       .insertInto('sessions')
       .values({
-        id: 'test-session',
-        user_id: 'test-user',
+        id: TEST_SESSION_ID,
+        user_id: TEST_USER_ID,
         token_hash: 'test-hash',
         expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         ip_address: null,
@@ -140,7 +164,7 @@ describe('GET /api/devices — BigInt serialisation', () => {
     jest.clearAllMocks()
     validateSessionMock = jest.fn().mockResolvedValue({
       user: {
-        id: 'test-user',
+        id: TEST_USER_ID,
         email: 'test@example.com',
         name: 'Test User',
         role: 'VIEWER',
@@ -150,8 +174,8 @@ describe('GET /api/devices — BigInt serialisation', () => {
         updatedAt: new Date(),
       },
       session: {
-        id: 'test-session',
-        userId: 'test-user',
+        id: TEST_SESSION_ID,
+        userId: TEST_USER_ID,
         tokenHash: 'test-hash',
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         ipAddress: null,
@@ -162,10 +186,10 @@ describe('GET /api/devices — BigInt serialisation', () => {
     ;(validateSession as jest.Mock).mockImplementation(validateSessionMock)
 
     getAuthContextMock = jest.fn().mockResolvedValue({
-      user: { id: 'test-user', role: 'VIEWER' },
+      user: { id: TEST_USER_ID, role: 'VIEWER' },
       session: {
-        id: 'test-session',
-        userId: 'test-user',
+        id: TEST_SESSION_ID,
+        userId: TEST_USER_ID,
         tokenHash: 'test-hash',
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         ipAddress: null,
@@ -176,10 +200,10 @@ describe('GET /api/devices — BigInt serialisation', () => {
     ;(getAuthContext as jest.Mock).mockImplementation(getAuthContextMock)
 
     requireAuthMock = jest.fn().mockResolvedValue({
-      user: { id: 'test-user', role: 'VIEWER' },
+      user: { id: TEST_USER_ID, role: 'VIEWER' },
       session: {
-        id: 'test-session',
-        userId: 'test-user',
+        id: TEST_SESSION_ID,
+        userId: TEST_USER_ID,
         tokenHash: 'test-hash',
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         ipAddress: null,

@@ -101,8 +101,15 @@ jobs:
         run: npm ci
 
       # PRD §7 requires the suite to be green against MySQL, not only SQLite.
+      #
+      # --runInBand is not an optimisation choice, it is required. The repository
+      # tests share one database, and every suite truncates the tables in its
+      # beforeEach. Against SQLite each worker gets a private :memory: database
+      # so parallel workers cannot collide. MySQL has no such isolation: with
+      # parallel workers one suite's truncate wipes another's fixtures
+      # mid-test. That produced wildly varying failure counts run to run.
       - name: Test against MySQL
-        run: npm test
+        run: npx jest --runInBand
         env:
           DB_CLIENT: mysql
           DB_HOST: 127.0.0.1

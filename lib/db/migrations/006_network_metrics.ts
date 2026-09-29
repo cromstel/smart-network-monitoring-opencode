@@ -5,14 +5,14 @@ export async function up(db: Kysely<DB>): Promise<void> {
   await db.schema
     .createTable('network_metrics')
     .addColumn('id', 'uuid', (c) => c.primaryKey())
-    .addColumn('timestamp', 'datetime', (c) => c.notNull())
+    .addColumn('timestamp', 'varchar(64)', (c) => c.notNull())
     .addColumn('total_bandwidth_up', 'real', (c) => c.notNull().defaultTo(0))
     .addColumn('total_bandwidth_down', 'real', (c) => c.notNull().defaultTo(0))
     .addColumn('active_devices', 'integer', (c) => c.notNull().defaultTo(0))
     .addColumn('online_devices', 'integer', (c) => c.notNull().defaultTo(0))
     .addColumn('peak_bandwidth_up', 'real', (c) => c.notNull().defaultTo(0))
     .addColumn('peak_bandwidth_down', 'real', (c) => c.notNull().defaultTo(0))
-    .addColumn('created_at', 'datetime', (c) => c.notNull())
+    .addColumn('created_at', 'varchar(64)', (c) => c.notNull())
     .execute()
 
   await db.schema
@@ -25,7 +25,7 @@ export async function up(db: Kysely<DB>): Promise<void> {
     .addColumn('failure_count', 'integer', (c) => c.notNull().defaultTo(0))
     .addColumn('status', 'varchar(20)', (c) => c.notNull())
     .addColumn('error_message', 'text')
-    .addColumn('created_at', 'datetime', (c) => c.notNull())
+    .addColumn('created_at', 'varchar(64)', (c) => c.notNull())
     .execute()
 
   await db.schema.createIndex('idx_nm_timestamp').on('network_metrics').columns(['timestamp']).execute()

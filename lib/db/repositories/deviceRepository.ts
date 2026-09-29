@@ -112,8 +112,48 @@ export interface ScanDeviceInput {
   signalStrength?: number | null
 }
 
+function isMysql(): boolean {
+  return process.env.DB_CLIENT === 'mysql'
+}
+
 export async function upsertFromScan(input: ScanDeviceInput): Promise<void> {
   const now = new Date().toISOString()
+
+  // Upsert is spelled differently per dialect. Kysely's onConflict() emits
+  // SQLite/Postgres `on conflict (...) do update set`, which MySQL rejects with
+  // a parse error — it wants `on duplicate key update` and takes the conflict
+  // target from the unique key instead of naming a column. Every scan cycle
+  // goes through here, so this broke the entire device scan on MySQL.
+  const values = {
+    ip_address: input.ipAddress,
+    hostname: input.hostname,
+    manufacturer: input.manufacturer,
+    signal_strength: input.signalStrength ?? null,
+    status: 'online' as const,
+    last_seen: now,
+    updated_at: now,
+  }
+
+  if (isMysql()) {
+    await db
+      .insertInto('devices')
+      .values({
+        id: randomUUID(),
+        mac_address: input.macAddress.toUpperCase(),
+        ip_address: input.ipAddress,
+        hostname: input.hostname,
+        manufacturer: input.manufacturer,
+        signal_strength: input.signalStrength ?? null,
+        status: 'online',
+        first_seen: now,
+        last_seen: now,
+        created_at: now,
+        updated_at: now,
+      })
+      .onDuplicateKeyUpdate(values)
+      .execute()
+    return
+  }
 
   await db
     .insertInto('devices')
@@ -130,17 +170,7 @@ export async function upsertFromScan(input: ScanDeviceInput): Promise<void> {
       created_at: now,
       updated_at: now,
     })
-    .onConflict((oc) =>
-      oc.column('mac_address').doUpdateSet({
-        ip_address: input.ipAddress,
-        hostname: input.hostname,
-        manufacturer: input.manufacturer,
-        signal_strength: input.signalStrength ?? null,
-        status: 'online',
-        last_seen: now,
-        updated_at: now,
-      })
-    )
+    .onConflict((oc) => oc.column('mac_address').doUpdateSet(values))
     .execute()
 }
 

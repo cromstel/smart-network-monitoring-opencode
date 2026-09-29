@@ -22,12 +22,26 @@ function isMysql(): boolean {
   return process.env.DB_CLIENT === 'mysql'
 }
 
-/** Truncates a timestamp column to the start of its hour, per dialect. */
+/**
+ * Buckets an ISO-8601 timestamp column to its hour, per dialect.
+ *
+ * This used to be `DATE_FORMAT(col, '%Y-%m-%d %H:00:00')` on MySQL and
+ * `strftime(...)` on SQLite, which assumed the column held a real DATETIME.
+ * It holds ISO-8601 text ("2026-09-29T15:05:00.000Z"), so MySQL coerced the
+ * value and rejected it:
+ *
+ *   Incorrect datetime value: '2026-09-29T15:05:00.000Z'
+ *   for column `bandwidth_metrics`.`timestamp`
+ *
+ * — failing the hourly rollup outright on MySQL. Truncating the text is both
+ * correct and simpler: the first 13 characters of an ISO-8601 UTC string are
+ * "YYYY-MM-DDTHH", and because the format is fixed-width and UTC those sort
+ * lexicographically in the same order as chronologically. SUBSTR is spelled the
+ * same in both dialects, so this is now a single expression rather than a
+ * branch. See lib/db/migrator.ts for why these columns are text.
+ */
 function hourTrunc(col: 'timestamp'): RawBuilder<unknown> {
-  if (isMysql()) {
-    return sql`DATE_FORMAT(${sql.ref(col)}, '%Y-%m-%d %H:00:00')`
-  }
-  return sql`strftime('%Y-%m-%d %H:00:00', ${sql.ref(col)})`
+  return sql`SUBSTR(${sql.ref(col)}, 1, 13)`
 }
 
 /** Sums a TEXT-typed byte counter, per dialect. */
@@ -84,7 +98,11 @@ export async function rollupHourly(): Promise<number> {
         .select([
           sql<string>`${randomUUID()}`.as('id'),
           'device_id',
-          bucket.as('hour_start'),
+          // The window is exactly one hour wide, so every row in the group
+          // belongs to the hour we already know. Writing the known ISO value
+          // avoids rebuilding the string in SQL, and keeps hour_start in the
+          // same ISO-8601 form as every other timestamp column.
+          sql<string>`${start.toISOString()}`.as('hour_start'),
           db.fn.avg('upload_speed').as('avg_upload_speed'),
           db.fn.avg('download_speed').as('avg_download_speed'),
           db.fn.max('upload_speed').as('peak_upload_speed'),
@@ -101,19 +119,46 @@ export async function rollupHourly(): Promise<number> {
     )
 
   // Re-running for an hour already aggregated must update, not duplicate.
-  const result = await insert
-    .onConflict((oc) =>
-      oc.columns(['device_id', 'hour_start']).doUpdateSet({
-        avg_upload_speed: (eb) => eb.ref('excluded.avg_upload_speed'),
-        avg_download_speed: (eb) => eb.ref('excluded.avg_download_speed'),
-        peak_upload_speed: (eb) => eb.ref('excluded.peak_upload_speed'),
-        peak_download_speed: (eb) => eb.ref('excluded.peak_download_speed'),
-        bytes_uploaded: (eb) => eb.ref('excluded.bytes_uploaded'),
-        bytes_downloaded: (eb) => eb.ref('excluded.bytes_downloaded'),
-        sample_count: (eb) => eb.ref('excluded.sample_count'),
-      })
-    )
-    .executeTakeFirst()
+  //
+  // Both the clause and the "value that would have been inserted" reference are
+  // dialect-specific:
+  //   SQLite: on conflict (cols) do update set col = excluded.col
+  //   MySQL:  on duplicate key update col = values(col)
+  // MySQL has no `excluded` pseudo-table; `values(col)` is its equivalent and is
+  // accepted by MariaDB and MySQL 5.7/8.0 alike. Re-aggregating an hour is the
+  // normal case after a restart, so this path runs for real, not just at edges.
+  const ROLLUP_COLUMNS = [
+    'avg_upload_speed',
+    'avg_download_speed',
+    'peak_upload_speed',
+    'peak_download_speed',
+    'bytes_uploaded',
+    'bytes_downloaded',
+    'sample_count',
+  ] as const
+
+  const result = isMysql()
+    ? await insert
+        .onDuplicateKeyUpdate(
+          Object.fromEntries(
+            ROLLUP_COLUMNS.map((col) => [col, sql`values(${sql.ref(col)})`])
+          ) as never
+        )
+        .executeTakeFirst()
+    : await insert
+        .onConflict((oc) =>
+          oc
+            .columns(['device_id', 'hour_start'])
+            .doUpdateSet(
+              Object.fromEntries(
+                ROLLUP_COLUMNS.map((col) => [
+                  col,
+                  (eb: { ref: (c: string) => unknown }) => eb.ref(`excluded.${col}`),
+                ])
+              ) as never
+            )
+        )
+        .executeTakeFirst()
 
   const count = Number((result as { numInsertedOrUpdatedRows?: bigint | number })?.numInsertedOrUpdatedRows ?? 0)
   logger.info({ count, hourStart: start.toISOString() }, 'hourly rollup completed')

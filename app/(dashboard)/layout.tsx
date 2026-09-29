@@ -6,6 +6,7 @@ import { useEventStream } from '@/lib/hooks/useEventStream'
 
 const NAV = [
   { href: '/', label: 'Dashboard' },
+  { href: '/overview', label: 'Overview' },
   { href: '/alerts', label: 'Alerts' },
   { href: '/settings', label: 'Settings' },
 ]

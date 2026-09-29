@@ -10,10 +10,10 @@ export async function up(db: Kysely<DB>): Promise<void> {
     .addColumn('id', 'uuid', (c) => c.primaryKey())
     .addColumn('device_id', 'uuid', (c) => c.notNull())
     .addColumn('event_type', 'varchar(20)', (c) => c.notNull())
-    .addColumn('timestamp', 'datetime', (c) => c.notNull())
+    .addColumn('timestamp', 'varchar(64)', (c) => c.notNull())
     .addColumn('ip_address', 'varchar(45)')
     .addColumn('connection_duration', 'integer')
-    .addColumn('created_at', 'datetime', (c) => c.notNull())
+    .addColumn('created_at', 'varchar(64)', (c) => c.notNull())
     .addForeignKeyConstraint('fk_cl_device', ['device_id'], 'devices', ['id'], onDeleteCascade)
     .execute()
 

@@ -147,9 +147,110 @@ export function getSchedulerStatus(): {
   }
 }
 
+/**
+ * Contains client disconnects so they cannot take the process down.
+ *
+ * A browser closing the dashboard tab aborts the /api/events request. Node
+ * reports that asynchronously, from the HTTP layer, as
+ *
+ *   uncaughtException: [Error: aborted] { code: 'ECONNRESET' }
+ *
+ * and nothing between it and the process listens for it, so the server dies.
+ * This was not theoretical: the Playwright run reproduced it every time, and the
+ * same abort happens whenever a real user closes the tab or navigates away. The
+ * E2E cascade it produced — nine tests failing with "element not found" and no
+ * mention of a crash — is why it stayed hidden.
+ *
+ * Catching errors around enqueue() in the route handler is not sufficient, and
+ * demonstrably was not: the abort does not surface where the write happens.
+ *
+ * The filter is deliberately narrow. Only a client-disconnect signature is
+ * swallowed; everything else is logged and rethrown so real bugs still crash
+ * loudly. A blanket uncaughtException handler would turn every future fault
+ * into a silent mystery, which is worse than the crash.
+ */
+function isClientDisconnect(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false
+  const e = err as { code?: string; message?: string; name?: string }
+  if (e.code === 'ECONNRESET' || e.code === 'EPIPE') return true
+  return e.name === 'AbortError' || e.message === 'aborted'
+}
+
+function installDisconnectGuard(): void {
+  const g = globalThis as unknown as { __disconnectGuard?: boolean }
+  if (g.__disconnectGuard) return
+  g.__disconnectGuard = true
+
+  // A capture callback, not process.on / prependListener.
+  //
+  // Node invokes *every* listener for uncaughtException -- returning early from
+  // one does not stop the others. Next.js installs its own handler during server
+  // bootstrap that logs and exits, so no amount of prepending could suppress it;
+  // the capture callback is the only mechanism that takes exclusive control.
+  //
+  // This is not specific to SSE: it was reproduced with the EventSource disabled
+  // entirely. A browser that navigates away or closes a tab aborts whatever HTTP
+  // requests happen to be in flight, and Node reports that asynchronously, out of
+  // the HTTP layer, with nothing between it and the process. Catching errors
+  // around the SSE write could not have helped, because the abort does not
+  // surface where the write happens. The visible symptom was nine Playwright
+  // tests failing with "element not found" and no mention of a crash.
+  //
+  // The filter is narrow on purpose: only a client-disconnect signature is
+  // swallowed, and everything else is logged and rethrown so genuine faults still
+  // take the process down. A blanket catch would turn every future bug into a
+  // silent mystery, which is strictly worse than a crash.
+  // Defensive on both counts: the @types/node in this project predates these
+  // APIs, and Next.js evaluates route modules during `next build` in a context
+  // where `process` is a partial shim. If the hook is missing there is nothing
+  // to install, and the build must not fail because of it.
+  const proc = process as unknown as {
+    setUncaughtExceptionCaptureCallback?: (fn: (err: unknown) => void) => void
+    setUnhandledRejectionCaptureCallback?: (fn: (reason: unknown) => void) => void
+  }
+
+  if (typeof proc.setUncaughtExceptionCaptureCallback === 'function') {
+    proc.setUncaughtExceptionCaptureCallback((err: unknown) => {
+      if (isClientDisconnect(err)) {
+        logger.debug({ err }, 'client disconnected; ignoring')
+        return
+      }
+      logger.error({ err }, 'uncaught exception; rethrowing')
+      throw err
+    })
+  }
+
+  if (typeof proc.setUnhandledRejectionCaptureCallback === 'function') {
+    proc.setUnhandledRejectionCaptureCallback((reason: unknown) => {
+      if (isClientDisconnect(reason)) {
+        logger.debug({ err: reason }, 'client disconnect rejection; ignoring')
+        return
+      }
+      logger.error({ err: reason }, 'unhandled rejection; rethrowing')
+      throw reason
+    })
+  }
+
+  logger.info('client-disconnect guard installed')
+}
+
+/**
+ * Installed at module load, not inside register().
+ *
+ * Node runs uncaughtException handlers in registration order, and Next.js
+ * installs its own during server bootstrap. Calling this from register() was
+ * too late: the server logged the abort and exited before the guard was ever
+ * consulted. Importing this module is the earliest point the application
+ * controls, so the guard is armed before the http server exists.
+ */
+if (process.env.NEXT_RUNTIME === 'nodejs' && process.env.NODE_ENV !== 'test') {
+  installDisconnectGuard()
+}
+
 /** Next.js boot hook. */
 export function register(): void {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
   if (process.env.NODE_ENV === 'test') return
+  installDisconnectGuard()
   startScheduler()
 }
