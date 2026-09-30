@@ -34,7 +34,31 @@ import { db } from './client'
  * back to datetime, run the MariaDB leg first:
  *
  *   DB_CLIENT=mysql DB_NAME=home_monitor_test npx jest lib/db
- */
+
+/**
+ * WHY ID COLUMNS ARE varchar(36) AND NOT uuid
+ * ==========================================
+ * `uuid` is a MariaDB-specific data type, added in MariaDB 10.7. MySQL has no
+ * equivalent: MySQL 8.4 reports zero UUID-capable types in
+ * information_schema and rejects the column outright.
+ *
+ *   ERROR 1064 (42000): You have an error in your SQL syntax; check the manual
+ *   that corresponds to your MySQL server version for the right syntax to use
+ *   near 'uuid primary key)'
+ *
+ * So the schema could not be created on MySQL at all -- every migration failed
+ * at the first CREATE TABLE and 72 of 198 tests failed before reaching any
+ * application logic. It was invisible because only MariaDB was ever exercised:
+ * the CI leg that would have caught it ran a different engine than the one in
+ * the deployed container stack.
+ *
+ * `varchar(36)` is also what the code already assumes. Every id in
+ * `schema.ts` is typed `string`, every id is produced by `randomUUID()` and
+ * passed to the driver as a string. MariaDB's native uuid type stores exactly
+ * that: 36 bytes of text, read back unchanged. Declaring it as varchar keeps
+ * both engines byte-for-byte equivalent and matches the declared types.
+ *
+ * Same reasoning as the timestamp columns above, and for the same reason. */
 import * as Migration001Devices from './migrations/001_devices'
 import * as Migration002Bandwidth from './migrations/002_bandwidth'
 import * as Migration003ConnectionLogs from './migrations/003_connection_logs'

@@ -7,8 +7,8 @@ const onDeleteCascade = (cb: ForeignKeyConstraintBuilder) => cb.onDelete('cascad
 export async function up(db: Kysely<DB>): Promise<void> {
   await db.schema
     .createTable('bandwidth_metrics')
-    .addColumn('id', 'uuid', (c) => c.primaryKey())
-    .addColumn('device_id', 'uuid', (c) => c.notNull())
+    .addColumn('id', 'varchar(36)', (c) => c.primaryKey())
+    .addColumn('device_id', 'varchar(36)', (c) => c.notNull())
     .addColumn('timestamp', 'varchar(64)', (c) => c.notNull())
     .addColumn('upload_speed', 'real', (c) => c.notNull().defaultTo(0))
     .addColumn('download_speed', 'real', (c) => c.notNull().defaultTo(0))
@@ -20,8 +20,8 @@ export async function up(db: Kysely<DB>): Promise<void> {
 
   await db.schema
     .createTable('bandwidth_hourly')
-    .addColumn('id', 'uuid', (c) => c.primaryKey())
-    .addColumn('device_id', 'uuid', (c) => c.notNull())
+    .addColumn('id', 'varchar(36)', (c) => c.primaryKey())
+    .addColumn('device_id', 'varchar(36)', (c) => c.notNull())
     .addColumn('hour_start', 'varchar(64)', (c) => c.notNull())
     .addColumn('avg_upload_speed', 'real', (c) => c.notNull().defaultTo(0))
     .addColumn('avg_download_speed', 'real', (c) => c.notNull().defaultTo(0))

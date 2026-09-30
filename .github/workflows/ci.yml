@@ -71,32 +71,60 @@ jobs:
           path: coverage/
           retention-days: 7
 
-  mariadb:
-    name: Unit tests (MariaDB)
+  database:
+    name: Unit tests (${{ matrix.label }})
     runs-on: ubuntu-latest
+
+    # Both engines, neither optional. MariaDB 12.3 is what the local
+    # development server runs; MySQL 8.4 is what the deployed container stack
+    # runs. Testing only one of them means half of the real deployments are
+    # untested, which is precisely how B-14 came to be ticked "both green" while
+    # the MySQL leg had never run and could not have.
+    #
+    # fail-fast is off on purpose: the whole point of two jobs is knowing about
+    # both. Cancelling the second on the first failure would reintroduce exactly
+    # the blind spot this is meant to close.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: MariaDB 12.3
+            image: mariadb:12.3
+            # MariaDB ships its own readiness probe, which knows when the server
+            # is genuinely up. mysqladmin can pass while initialisation is still
+            # running, which makes a service look ready before it is.
+            health: 'healthcheck.sh --connect --innodb_initialized'
+            admin: 'mariadb'
+          - label: MySQL 8.4
+            image: mysql:8.4
+            health: 'mysqladmin ping -h 127.0.0.1 -uroot -pci-root'
+            admin: 'mysql'
+
     services:
-      # MariaDB, not MySQL. The production database is MariaDB 12.3, so testing
-      # against mysql:8 means testing a different database from the one that
-      # actually runs -- the same mistake as testing only SQLite. The suite goes
-      # green against a target nobody deploys to and the differences between the
-      # two engines stay invisible until a real install.
-      #
-      # Pinned to the 12.3 series to match the deployed version, rather than
-      # floating on "latest" which is how a breaking change arrives unannounced.
-      mariadb:
-        image: mariadb:12.3
+      db:
+        image: ${{ matrix.image }}
         env:
+          # Both prefixes are supplied with identical values. The two images read
+          # different variable names and there is no way to template a mapping
+          # *key* from a matrix value, so each image gets the one it knows and
+          # ignores the other. MariaDB's image treats MARIADB_* as
+          # authoritative; the MySQL image simply never reads them.
           MARIADB_ROOT_PASSWORD: ci-root
           MARIADB_DATABASE: home_monitor_test
           MARIADB_USER: monitor
           MARIADB_PASSWORD: ci-monitor
+          MYSQL_ROOT_PASSWORD: ci-root
+          MYSQL_DATABASE: home_monitor_test
+          MYSQL_USER: monitor
+          MYSQL_PASSWORD: ci-monitor
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-cmd="${{ matrix.health }}"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=10
+          --health-retries=20
+
     steps:
       - uses: actions/checkout@v4
 
@@ -108,15 +136,53 @@ jobs:
       - name: Install
         run: npm ci
 
-      # PRD §7 requires the suite to be green against MariaDB, not only SQLite.
+      # Report which engine actually answered, so a green run cannot be
+      # mistaken for the wrong server. This is the check that would have caught
+      # the previous job silently testing something other than what it claimed.
+      - name: Confirm the engine under test
+        run: |
+          node -e "
+          const mysql = require('mysql2/promise');
+          (async () => {
+            const c = await mysql.createConnection({
+              host: process.env.DB_HOST,
+              port: Number(process.env.DB_PORT),
+              user: process.env.DB_USER,
+              password: process.env.DB_PASSWORD,
+              database: process.env.DB_NAME,
+            });
+            const [r] = await c.query('SELECT VERSION() v, @@version_comment c');
+            console.log('engine  :', r[0].v);
+            console.log('comment :', r[0].c);
+            const [g] = await c.query('SELECT @@collation_server co');
+            console.log('collate :', g[0].co);
+            await c.end();
+            const expected = '${{ matrix.label }}'.split(' ')[0].toLowerCase();
+            if (!r[0].v.toLowerCase().includes(expected)) {
+              console.error('REFUSING: expected ' + expected + ', got ' + r[0].v);
+              process.exit(1);
+            }
+            console.log('matches matrix entry: ' + expected);
+          })().catch((e) => { console.error('connect failed:', e.code || e.message); process.exit(1); });
+          "
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_NAME: home_monitor_test
+          DB_USER: monitor
+          DB_PASSWORD: ci-monitor
+
+      # PRD §7 requires the suite to be green against a real MySQL-family
+      # database, not only SQLite.
       #
       # --runInBand is not an optimisation choice, it is required. The repository
       # tests share one database, and every suite truncates the tables in its
       # beforeEach. Against SQLite each worker gets a private :memory: database
-      # so parallel workers cannot collide. MariaDB has no such isolation: with
-      # parallel workers one suite's truncate wipes another's fixtures
-      # mid-test. That produced wildly varying failure counts run to run.
-      - name: Test against MariaDB
+      # so parallel workers cannot collide. A server database has no such
+      # isolation: with parallel workers one suite's truncate wipes another's
+      # fixtures mid-test. That produced wildly varying failure counts, 13 to
+      # 39, on identical code.
+      - name: Test against ${{ matrix.label }}
         run: npx jest --runInBand
         env:
           DB_CLIENT: mysql
@@ -128,7 +194,6 @@ jobs:
           RUN_MYSQL_TESTS: '1'
           SESSION_SECRET: ci-session-secret-not-for-production-use-0000
           ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
-
   performance:
     name: Performance (PRD §5)
     runs-on: ubuntu-latest

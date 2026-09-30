@@ -7,8 +7,8 @@ const onDeleteCascade = (cb: ForeignKeyConstraintBuilder) => cb.onDelete('cascad
 export async function up(db: Kysely<DB>): Promise<void> {
   await db.schema
     .createTable('user_settings')
-    .addColumn('id', 'uuid', (c) => c.primaryKey())
-    .addColumn('user_id', 'uuid', (c) => c.notNull())
+    .addColumn('id', 'varchar(36)', (c) => c.primaryKey())
+    .addColumn('user_id', 'varchar(36)', (c) => c.notNull())
     .addColumn('scan_interval_seconds', 'integer', (c) => c.notNull().defaultTo(30))
     .addColumn('data_retention_days', 'integer', (c) => c.notNull().defaultTo(30))
     .addColumn('network_subnet', 'varchar(64)', (c) => c.notNull().defaultTo('192.168.1.0/24'))
@@ -26,7 +26,7 @@ export async function up(db: Kysely<DB>): Promise<void> {
 
   await db.schema
     .createTable('router_config')
-    .addColumn('id', 'uuid', (c) => c.primaryKey())
+    .addColumn('id', 'varchar(36)', (c) => c.primaryKey())
     .addColumn('router_type', 'varchar(50)', (c) => c.notNull())
     .addColumn('router_name', 'varchar(255)')
     .addColumn('router_ip', 'varchar(45)', (c) => c.notNull())

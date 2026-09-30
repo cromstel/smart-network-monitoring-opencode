@@ -7,8 +7,8 @@ const onDeleteCascade = (cb: ForeignKeyConstraintBuilder) => cb.onDelete('cascad
 export async function up(db: Kysely<DB>): Promise<void> {
   await db.schema
     .createTable('connection_logs')
-    .addColumn('id', 'uuid', (c) => c.primaryKey())
-    .addColumn('device_id', 'uuid', (c) => c.notNull())
+    .addColumn('id', 'varchar(36)', (c) => c.primaryKey())
+    .addColumn('device_id', 'varchar(36)', (c) => c.notNull())
     .addColumn('event_type', 'varchar(20)', (c) => c.notNull())
     .addColumn('timestamp', 'varchar(64)', (c) => c.notNull())
     .addColumn('ip_address', 'varchar(45)')

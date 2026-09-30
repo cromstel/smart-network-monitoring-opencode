@@ -8,7 +8,7 @@ const onDeleteSetNull = (cb: ForeignKeyConstraintBuilder) => cb.onDelete('set nu
 export async function up(db: Kysely<DB>): Promise<void> {
   await db.schema
     .createTable('users')
-    .addColumn('id', 'uuid', (c) => c.primaryKey())
+    .addColumn('id', 'varchar(36)', (c) => c.primaryKey())
     .addColumn('email', 'varchar(255)', (c) => c.notNull())
     .addColumn('password_hash', 'varchar(255)', (c) => c.notNull())
     .addColumn('name', 'varchar(255)')
@@ -22,8 +22,8 @@ export async function up(db: Kysely<DB>): Promise<void> {
 
   await db.schema
     .createTable('sessions')
-    .addColumn('id', 'uuid', (c) => c.primaryKey())
-    .addColumn('user_id', 'uuid', (c) => c.notNull())
+    .addColumn('id', 'varchar(36)', (c) => c.primaryKey())
+    .addColumn('user_id', 'varchar(36)', (c) => c.notNull())
     .addColumn('token_hash', 'varchar(255)', (c) => c.notNull())
     .addColumn('expires_at', 'varchar(64)', (c) => c.notNull())
     .addColumn('ip_address', 'varchar(45)')
@@ -35,9 +35,9 @@ export async function up(db: Kysely<DB>): Promise<void> {
 
   await db.schema
     .createTable('device_alerts')
-    .addColumn('id', 'uuid', (c) => c.primaryKey())
-    .addColumn('user_id', 'uuid', (c) => c.notNull())
-    .addColumn('device_id', 'uuid')
+    .addColumn('id', 'varchar(36)', (c) => c.primaryKey())
+    .addColumn('user_id', 'varchar(36)', (c) => c.notNull())
+    .addColumn('device_id', 'varchar(36)')
     .addColumn('alert_type', 'varchar(50)', (c) => c.notNull())
     .addColumn('threshold', 'real')
     .addColumn('is_active', 'integer', (c) => c.notNull().defaultTo(1))
@@ -51,10 +51,10 @@ export async function up(db: Kysely<DB>): Promise<void> {
 
   await db.schema
     .createTable('notifications')
-    .addColumn('id', 'uuid', (c) => c.primaryKey())
-    .addColumn('user_id', 'uuid', (c) => c.notNull())
-    .addColumn('device_id', 'uuid')
-    .addColumn('alert_id', 'uuid')
+    .addColumn('id', 'varchar(36)', (c) => c.primaryKey())
+    .addColumn('user_id', 'varchar(36)', (c) => c.notNull())
+    .addColumn('device_id', 'varchar(36)')
+    .addColumn('alert_id', 'varchar(36)')
     .addColumn('title', 'varchar(255)', (c) => c.notNull())
     .addColumn('message', 'text', (c) => c.notNull())
     .addColumn('type', 'varchar(20)', (c) => c.notNull().defaultTo('info'))
