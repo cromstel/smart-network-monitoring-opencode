@@ -13,25 +13,25 @@ import { db } from './client'
  *
  * The migrations used to declare these columns `datetime`. SQLite stores such a
  * string in a DATETIME-affinity column without complaint, so the SQLite leg was
- * green. MySQL does not — it rejects the format outright:
+ * green. MariaDB does not — it rejects the format outright:
  *
  *   Incorrect datetime value: '2026-09-29T16:24:05.817Z'
  *   for column `devices`.`first_seen` at row 1
  *
- * so *every* write to MySQL failed. Not a slow path or an edge case: the first
- * insert aborted the request. The MySQL leg of CI (TODO.md B-14) was recorded
- * as "both green" and was not; deviceRepository.test.ts fails 6/6 on MySQL for
- * this reason alone.
+ * so *every* write failed. Not a slow path or an edge case: the first
+ * insert aborted the request. The database leg of CI (TODO.md B-14) was recorded
+ * as "both green" and was not; deviceRepository.test.ts fails 6/6 on MariaDB for
+ * this reason alone. Verified against MariaDB 12.3, which is what is deployed.
  *
  * Declaring the columns as text makes both dialects agree and matches the types
  * the code already uses. ISO-8601 UTC sorts correctly as a string, so range
  * queries (`timestamp >= ?`) and ORDER BY timestamp keep working unchanged.
  *
- * The alternative — MySQL DATETIME plus a dialect-aware conversion on every
+ * The alternative — a real DATETIME plus a dialect-aware conversion on every
  * write — was rejected deliberately: mysql2 would then hand back Date objects
  * where SQLite returns strings, contradicting every `string` in schema.ts and
  * pushing a conversion into every read path. If you are tempted to change these
- * back to datetime, run the MySQL leg first:
+ * back to datetime, run the MariaDB leg first:
  *
  *   DB_CLIENT=mysql DB_NAME=home_monitor_test npx jest lib/db
  */

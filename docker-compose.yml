@@ -1,37 +1,56 @@
-# Local MySQL for development and for the CI MySQL test leg.
+# Local MariaDB for development, and the same engine the CI test leg uses.
 # Production installs normally use SQLite.
 #
-# The MySQL credentials are required, not defaulted. This file previously
-# carried ${DB_PASSWORD:-monitor}, so a container started without a .env would
-# come up with a working password of "monitor" — the same word as the account
-# name, and the password this repository leaked before the history rewrite.
-# A default that is itself a credential is how that leak happened the first
-# time, so there is no fallback here. Put the values in .env (untracked) or
-# export them in the shell.
+# MariaDB, not MySQL. The deployed database is MariaDB 12.3, and the two
+# engines differ in ways this application has already been bitten by: MariaDB
+# rejects an ISO-8601 string in a `datetime` column, and so does MySQL, but
+# their default collations and several type behaviours do differ. Running
+# against a different engine than the one you deploy to means the differences
+# surface at install time instead of in CI.
+#
+# DB_CLIENT stays `mysql` everywhere below. That is the application's name for
+# the *driver and dialect* (Kysely's MysqlDialect via mysql2), not the name of
+# the server. MariaDB speaks the same wire protocol and is reached through it.
+# `lib/config.ts` validates DB_CLIENT as 'sqlite' | 'mysql' for that reason.
+#
+# The credentials are required, not defaulted. This file previously carried
+# ${DB_PASSWORD:-monitor}, so a container started without a .env would come up
+# with a working password of "monitor" — the same word as the account name, and
+# the password this repository leaked before the history rewrite. A default
+# that is itself a credential is how that leak happened the first time, so
+# there is no fallback here. Put the values in .env (untracked) or export them
+# in the shell.
 services:
-  mysql:
-    image: mysql:8.0
+  mariadb:
+    image: mariadb:12.3
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: ${DB_NAME:?set DB_NAME}
-      MYSQL_USER: ${DB_USER:?set DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME:?set DB_NAME}
+      MARIADB_USER: ${DB_USER:?set DB_USER}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD}
     ports:
       - "${DB_PORT:-3306}:3306"
     command:
+      # Character set is pinned; the collation is deliberately not. MariaDB
+      # 12.3 defaults to utf8mb4_uca1400_ai_ci, which is what the deployed
+      # server reports, and forcing utf8mb4_unicode_ci here would make local
+      # development quietly disagree with production. The image is pinned to a
+      # minor series so the default cannot drift underneath us.
       - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
     volumes:
-      - mysql-data:/var/lib/mysql
+      - mariadb-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD}"]
+      # healthcheck.sh ships with the MariaDB image and knows when the server
+      # is genuinely ready, which `mysqladmin ping` does not: it can succeed
+      # while initialisation is still running.
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s
       timeout: 3s
       retries: 20
       start_period: 30s
 
-  # The application. Start it only when you intend to run against MySQL;
+  # The application. Start it only when you intend to run against MariaDB;
   # for a plain SQLite install run `docker compose up -d app` after copying
   # .env.example to .env.
   app:
@@ -40,18 +59,18 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
-      mysql:
+      mariadb:
         condition: service_healthy
     env_file:
       - .env
     environment:
       # Container-internal values always win over the host .env.
       DB_CLIENT: mysql
-      DB_HOST: mysql
+      DB_HOST: mariadb
       DB_PORT: 3306
       DB_NAME: ${DB_NAME:-home_monitor}
       DB_USER: ${DB_USER:-monitor}
-      # No fallback, matching the mysql service above. ${DB_PASSWORD:-monitor}
+      # No fallback, matching the mariadb service above. ${DB_PASSWORD:-monitor}
       # would quietly reintroduce a known password on a container started
       # without a .env.
       DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
@@ -65,5 +84,5 @@ services:
       - NET_RAW
 
 volumes:
-  mysql-data:
+  mariadb-data:
   app-data:

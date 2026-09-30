@@ -45,6 +45,18 @@ function createMysql(): Kysely<DB> {
   })
 }
 
+/**
+ * DB_CLIENT names the *driver*, not the server.
+ *
+ * 'mysql' selects Kysely's MysqlDialect over the mysql2 driver. The deployed
+ * server is MariaDB 12.3, reached through exactly that dialect, because the two
+ * speak the same protocol. Nothing here needs changing to run against MariaDB,
+ * and nothing here means "MySQL the product" -- it is the config key's name.
+ *
+ * The distinction is worth stating because the app talks to MariaDB while every
+ * variable, type and function is called 'mysql', and that reads like a mistake
+ * until you know the wire protocol is shared.
+ */
 function create(): Kysely<DB> {
   return process.env.DB_CLIENT === 'mysql' ? createMysql() : createSqlite()
 }
