@@ -4,7 +4,7 @@ import { test, expect, signIn } from './fixtures'
 test.describe('rename a device', () => {
   test.beforeEach(async ({ page }) => {
     await page.context().clearCookies()
-    await signIn(page)
+    await signIn(page, '/devices')
   })
 
   test('renames a device and the change survives a reload', async ({ page }) => {

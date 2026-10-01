@@ -14,7 +14,7 @@ import {
 import { ChevronUp, ChevronDown } from 'lucide-react'
 import type { DeviceDTO } from '@/lib/api/serialisers'
 
-export default function DashboardPage() {
+export default function DevicesPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<string>('')
   const [sort, setSort] = useState<string>('lastSeen')

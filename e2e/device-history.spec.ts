@@ -4,7 +4,7 @@ import { test, expect, signIn } from './fixtures'
 test.describe('device history', () => {
   test.beforeEach(async ({ page }) => {
     await page.context().clearCookies()
-    await signIn(page)
+    await signIn(page, '/devices')
   })
 
   test('shows a bandwidth chart for a device', async ({ page }) => {

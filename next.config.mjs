@@ -3,22 +3,27 @@ const nextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ['bcryptjs', 'better-sqlite3', 'mysql2', 'kysely', 'node-cron', 'oui-data'],
 
-  // The authentication pages moved under /auth/*. Anything that still points at
-  // the old paths is redirected rather than left to 404 — bookmarks, and any
-  // link pasted from an older version, should keep working.
-  //
-  // /login and /setup are NOT in the middleware allowlist any more, so an
-  // unauthenticated visitor to them is bounced to /auth/login by the middleware
-  // before a route is ever resolved. These redirects cover the remaining case,
-  // an authenticated user following a stale link, and are permanent so browsers
-  // cache them.
-  //
-  // Remove these once no plausible client holds an old bookmark; they are a
-  // compatibility shim, not part of the route design.
+  /**
+   * Compatibility redirects for paths that used to exist.
+   *
+   * Every entry here is a path that resolved before and no longer does. They
+   * exist so an old bookmark, or a link pasted from an older version, keeps
+   * working instead of hitting a 404. None of them is part of the current route
+   * design; once no plausible client holds an old link they can all be deleted
+   * in one go.
+   *
+   * Redirects rather than duplicate pages, deliberately. A second route serving
+   * the same component is a second thing to keep in sync, and these are being
+   * retired, not maintained.
+   */
   async redirects() {
     return [
+      // Authentication pages moved under /auth/*.
       { source: '/login', destination: '/auth/login', permanent: true },
       { source: '/setup', destination: '/auth/setup', permanent: true },
+
+      // The overview became the landing page at '/', so '/overview' was retired.
+      { source: '/overview', destination: '/', permanent: true },
     ]
   },
 }

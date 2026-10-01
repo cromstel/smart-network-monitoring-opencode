@@ -3,11 +3,16 @@
 import { Suspense, useState, type FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { safeRedirect } from '@/lib/utils/redirect'
 
 function LoginForm() {
   const router = useRouter()
   const params = useSearchParams()
-  const redirect = params.get('redirect') || '/'
+  // The middleware sets ?redirect= to the path that was denied, so a deep link
+  // survives the login detour. It is user-supplied all the same, so it is
+  // validated rather than trusted: without this, a link to
+  // /auth/login?redirect=https://elsewhere navigates off-origin after sign-in.
+  const redirect = safeRedirect(params.get('redirect'))
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

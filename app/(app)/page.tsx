@@ -102,7 +102,7 @@ export default function OverviewPage() {
     <section className="space-y-6">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Overview</h1>
           <p className="mt-1 text-sm text-slate-400">
             Real-time visibility into your network.
           </p>

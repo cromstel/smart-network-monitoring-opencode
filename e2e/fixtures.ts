@@ -37,8 +37,14 @@ export const test = base.extend<{ page: Page }>({
 
 export { expect }
 
-/** Signs in through the real form so the session cookie is set the honest way. */
-export async function signIn(page: Page): Promise<void> {
+/**
+ * Signs in through the real form so the session cookie is set the honest way.
+ *
+ * `destination` defaults to the overview, which is where the app sends you.
+ * Pass '/devices' for the specs that then work with the device list, so the
+ * landing page and the list are never conflated.
+ */
+export async function signIn(page: Page, destination = '/'): Promise<void> {
   await page.goto('/auth/login')
   await page.getByLabel('Email').fill(ADMIN_EMAIL)
   await page.getByLabel('Password').fill(ADMIN_PASSWORD)
@@ -46,6 +52,10 @@ export async function signIn(page: Page): Promise<void> {
   await page.waitForURL((url) => !url.pathname.startsWith('/auth/login'), {
     timeout: 20_000,
   })
+  if (destination !== '/') {
+    await page.goto(destination)
+    await page.waitForLoadState('domcontentloaded')
+  }
 }
 
 export async function signOut(page: Page): Promise<void> {

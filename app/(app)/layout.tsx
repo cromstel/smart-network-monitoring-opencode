@@ -4,9 +4,13 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEventStream } from '@/lib/hooks/useEventStream'
 
+// Order is the reading order of the product: what is happening now, then
+// what exists, then what to act on, then configuration. '/' is the overview
+// and /devices is the list, which is why the nav distinguishes them rather
+// than reusing the word Dashboard for both.
 const NAV = [
-  { href: '/', label: 'Dashboard' },
-  { href: '/overview', label: 'Overview' },
+  { href: '/', label: 'Overview' },
+  { href: '/devices', label: 'Devices' },
   { href: '/alerts', label: 'Alerts' },
   { href: '/settings', label: 'Settings' },
 ]
