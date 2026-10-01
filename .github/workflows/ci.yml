@@ -194,8 +194,8 @@ jobs:
           RUN_MYSQL_TESTS: '1'
           SESSION_SECRET: ci-session-secret-not-for-production-use-0000
           ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
-  performance:
-    name: Performance (PRD §5)
+  performance-sqlite:
+    name: Performance (PRD §5) — sqlite
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -213,6 +213,8 @@ jobs:
         # the PRD §5 targets are written against.
         run: npm run perf:dataset
         env:
+          DB_CLIENT: sqlite
+          DB_FILE: ./data/perf.db
           SESSION_SECRET: perf-session-secret-not-for-production-000000
           ENCRYPTION_KEY: perf-encryption-key-not-for-production-00000000
 
@@ -221,6 +223,8 @@ jobs:
       - name: Measure against the PRD §5 targets
         run: npm run perf
         env:
+          DB_CLIENT: sqlite
+          DB_FILE: ./data/perf.db
           SESSION_SECRET: perf-session-secret-not-for-production-000000
           ENCRYPTION_KEY: perf-encryption-key-not-for-production-00000000
 
@@ -228,8 +232,124 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: performance-report
-          path: doc/PERFORMANCE.md
+          name: performance-report-sqlite
+          path: doc/PERFORMANCE.sqlite.md
+          retention-days: 7
+
+  # The server engines are a separate job rather than extra rows in the
+  # SQLite job's matrix. A service container cannot be made conditional per
+  # matrix entry — `services.*` has no `if` key, and an entry with an empty
+  # image is rejected at workflow-validation time rather than skipped — so a
+  # single matrix across all three engines cannot be expressed. One job for the
+  # file-backed engine, one for the two servers, no conditional service.
+  performance-server:
+    name: Performance (PRD §5) — ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    strategy:
+      # fail-fast: false so a miss on one engine still reports the other, and
+      # so a green MySQL number can never hide a failed MariaDB one.
+      fail-fast: false
+      matrix:
+        include:
+          - label: mariadb
+            image: mariadb:12.3
+          - label: mysql
+            image: mysql:8.4
+
+    services:
+      db:
+        image: ${{ matrix.image }}
+        env:
+          # Both images read the MYSQL_* variables; MariaDB also accepts
+          # MARIADB_* and prefers it, so both spellings are supplied.
+          MARIADB_ROOT_PASSWORD: perf-root
+          MARIADB_DATABASE: home_monitor_perf
+          MARIADB_USER: monitor
+          MARIADB_PASSWORD: perf-monitor
+          MYSQL_ROOT_PASSWORD: perf-root
+          MYSQL_DATABASE: home_monitor_perf
+          MYSQL_USER: monitor
+          MYSQL_PASSWORD: perf-monitor
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -umonitor -pperf-monitor"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Confirm the engine under test
+        # A green run attributed to the wrong engine is worse than no run, so
+        # the engine is verified before anything is measured. DB_CLIENT=mysql
+        # names the driver, not the server.
+        run: |
+          node -e "
+          const mysql = require('mysql2/promise');
+          (async () => {
+            const c = await mysql.createConnection({
+              host: '127.0.0.1', port: 3306,
+              user: 'monitor', password: 'perf-monitor', database: 'home_monitor_perf',
+            });
+            const [r] = await c.query('SELECT VERSION() v, @@version_comment c');
+            console.log('engine  :', r[0].v);
+            console.log('comment :', r[0].c);
+            await c.end();
+            const expected = '${{ matrix.label }}'.toLowerCase();
+            if (!r[0].v.toLowerCase().includes(expected)) {
+              console.error('REFUSING: expected ' + expected + ', got ' + r[0].v);
+              process.exit(1);
+            }
+            console.log('matches matrix entry: ' + expected);
+          })().catch((e) => { console.error('connect failed:', e.code || e.message); process.exit(1); });
+          "
+
+      - name: Build the performance dataset
+        run: npm run perf:dataset
+        env:
+          DB_CLIENT: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          # The dataset builder refuses a schema name that does not look like a
+          # throwaway, so a benchmark can never overwrite the live database.
+          DB_NAME: home_monitor_perf
+          DB_USER: monitor
+          DB_PASSWORD: perf-monitor
+          SESSION_SECRET: perf-session-secret-not-for-production-000000
+          ENCRYPTION_KEY: perf-encryption-key-not-for-production-00000000
+
+      - name: Measure against the PRD §5 targets
+        run: npm run perf
+        env:
+          DB_CLIENT: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_NAME: home_monitor_perf
+          DB_USER: monitor
+          DB_PASSWORD: perf-monitor
+          SESSION_SECRET: perf-session-secret-not-for-production-000000
+          ENCRYPTION_KEY: perf-encryption-key-not-for-production-00000000
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          # One artifact per engine, and the path is the engine slug rather than
+          # the dialect: DB_CLIENT=mysql drives both MariaDB and MySQL, so a
+          # dialect-keyed path would have the second matrix entry overwrite the
+          # first.
+          name: performance-report-${{ matrix.label }}
+          path: doc/PERFORMANCE.${{ matrix.label }}.md
           retention-days: 7
 
   e2e:

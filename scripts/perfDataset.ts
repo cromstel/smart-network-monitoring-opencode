@@ -7,8 +7,13 @@
  * (5 devices, a known password) because this one exists purely to make the
  * database big enough to measure honestly.
  *
- * Refuses to touch a database that already has devices, and always runs
- * against a caller-supplied DB_FILE so it cannot clobber real data.
+ * Refuses to touch a database that already has devices, and requires the
+ * caller to name a throwaway target — a `DB_FILE` path on SQLite, a `DB_NAME`
+ * schema on MySQL — so it cannot clobber real data.
+ *
+ * Usage:
+ *   SQLite:   DB_FILE=./data/perf.db                  npm run perf:dataset
+ *   MySQL:    DB_NAME=home_monitor_perf               npm run perf:dataset
  */
 
 import { randomUUID } from 'node:crypto'
@@ -46,7 +51,40 @@ export interface PerfDatasetSummary {
   databaseFile: string
 }
 
+/**
+ * Confirms the target database is a throwaway, and returns a human label for
+ * it. The dataset is 288,000 rows written one device at a time — pointed at a
+ * real database that is destructive, so this refuses rather than trusting the
+ * caller to have been careful.
+ *
+ * The guard is dialect-aware because the ways of naming a throwaway differ: a
+ * SQLite throwaway is a file path, a MySQL one is a schema. Requiring `DB_FILE`
+ * on the MySQL path would have meant the MySQL leg could never run at all,
+ * which is how it stayed unmeasured in the first place.
+ */
 export async function assertDisposableDatabase(): Promise<string> {
+  const client = process.env.DB_CLIENT ?? 'sqlite'
+
+  if (client === 'mysql') {
+    const name = process.env.DB_NAME ?? ''
+    if (!name) {
+      throw new Error('DB_NAME must be set when DB_CLIENT=mysql — refusing to guess.')
+    }
+    // Same intent as the `dev.db` check below: a name that looks like it could
+    // be the real one is refused outright.
+    if (/^(home_monitor|smart_home_monitor|monitor)$/i.test(name)) {
+      throw new Error(
+        `Refusing to build a performance dataset in schema "${name}" — that looks like the live database. Point DB_NAME at a scratch schema.`
+      )
+    }
+    if (!/(_test|_perf|perf_|_scratch)/i.test(name)) {
+      throw new Error(
+        `Refusing to build a performance dataset in schema "${name}" — the name does not look like a throwaway. Use a schema such as home_monitor_perf.`
+      )
+    }
+    return `${process.env.DB_HOST ?? 'localhost'}:${process.env.DB_PORT ?? 3306}/${name}`
+  }
+
   const file = process.env.DB_FILE ?? ''
   if (!file) {
     throw new Error('DB_FILE must be set (e.g. ./data/perf.db) — refusing to guess.')
