@@ -24,7 +24,7 @@ export default function SetupPage() {
         if (cancelled) return
         if (body?.data?.setupComplete) {
           setStatus('done')
-          router.replace('/login')
+          router.replace('/auth/login')
         } else {
           setStatus('needed')
         }
@@ -53,7 +53,7 @@ export default function SetupPage() {
       })
 
       if (res.ok) {
-        router.replace('/login')
+        router.replace('/auth/login')
         router.refresh()
         return
       }
@@ -81,7 +81,7 @@ export default function SetupPage() {
 
         {status === 'done' && (
           <p className="mt-8 text-sm text-slate-400">
-            Setup is already complete. <Link href="/login" className="text-blue-400 hover:underline">Sign in</Link>
+            Setup is already complete. <Link href="/auth/login" className="text-blue-400 hover:underline">Sign in</Link>
           </p>
         )}
 

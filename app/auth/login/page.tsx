@@ -114,7 +114,7 @@ export default function LoginPage() {
 
         <p className="mt-6 text-xs text-slate-500">
           First run?{' '}
-          <Link href="/setup" className="text-blue-400 hover:underline">
+          <Link href="/auth/setup" className="text-blue-400 hover:underline">
             Create the admin account
           </Link>
         </p>

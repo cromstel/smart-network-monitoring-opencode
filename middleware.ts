@@ -5,9 +5,11 @@ import { logger } from '@/lib/utils/logger'
 
 export const runtime = 'nodejs'
 
+// Authentication pages live under /auth/*. The API routes keep their own
+// /api/* namespace and are listed separately below.
 const ALLOWED_PATHS = [
-  '/login',
-  '/setup',
+  '/auth/login',
+  '/auth/setup',
   '/api/health',
   '/api/auth/login',
   '/api/auth/logout',
@@ -27,7 +29,7 @@ export async function middleware(request: NextRequest) {
 
   const token = request.cookies.get('session')?.value
   if (!token) {
-    const loginUrl = new URL('/login', request.url)
+    const loginUrl = new URL('/auth/login', request.url)
     loginUrl.searchParams.set('redirect', path)
     logger.warn({ path }, 'unauthenticated access denied')
     return NextResponse.redirect(loginUrl)
@@ -35,7 +37,7 @@ export async function middleware(request: NextRequest) {
 
   const result = await validateSession(token)
   if (!result) {
-    const loginUrl = new URL('/login', request.url)
+    const loginUrl = new URL('/auth/login', request.url)
     loginUrl.searchParams.set('redirect', path)
     logger.warn({ path }, 'invalid session')
     const response = NextResponse.redirect(loginUrl)

@@ -39,11 +39,13 @@ export { expect }
 
 /** Signs in through the real form so the session cookie is set the honest way. */
 export async function signIn(page: Page): Promise<void> {
-  await page.goto('/login')
+  await page.goto('/auth/login')
   await page.getByLabel('Email').fill(ADMIN_EMAIL)
   await page.getByLabel('Password').fill(ADMIN_PASSWORD)
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20_000 })
+  await page.waitForURL((url) => !url.pathname.startsWith('/auth/login'), {
+    timeout: 20_000,
+  })
 }
 
 export async function signOut(page: Page): Promise<void> {

@@ -23,7 +23,7 @@ export default function DashboardLayout({
 
   async function signOut() {
     await fetch('/api/auth/logout', { method: 'POST' })
-    router.replace('/login')
+    router.replace('/auth/login')
     router.refresh()
   }
 

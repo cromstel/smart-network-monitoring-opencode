@@ -7,34 +7,34 @@ import { test, expect } from './fixtures'
 
 test.describe('authentication and device list', () => {
   test('rejects a wrong password', async ({ page }) => {
-    await page.goto('/login')
+    await page.goto('/auth/login')
     await page.getByLabel('Email').fill('e2e-admin@example.com')
     await page.getByLabel('Password').fill('definitely-not-the-password')
     await page.getByRole('button', { name: 'Sign in' }).click()
 
     await expect(page.getByRole('alert')).toBeVisible()
-    await expect(page).toHaveURL(/\/login/)
+    await expect(page).toHaveURL((url) => url.pathname === '/auth/login')
   })
 
   test('sends an unauthenticated visitor to the login page', async ({ page }) => {
     await page.context().clearCookies()
     await page.goto('/alerts', { waitUntil: 'domcontentloaded' })
-    await expect(page).toHaveURL(/\/login/)
+    await expect(page).toHaveURL((url) => url.pathname === '/auth/login')
   })
 
   test('signs in and lands on the device list', async ({ page }) => {
     await page.context().clearCookies()
-    await page.goto('/login')
+    await page.goto('/auth/login')
     await page.getByLabel('Email').fill('e2e-admin@example.com')
     await page.getByLabel('Password').fill('E2e-Admin-Pass-2026')
     await page.getByRole('button', { name: 'Sign in' }).click()
 
-    await expect(page).not.toHaveURL(/\/login/)
+    await expect(page).not.toHaveURL((url) => url.pathname === '/auth/login')
     await expect(page.getByRole('heading', { name: 'Devices' })).toBeVisible()
   })
 
   test('lists the seeded devices with their addresses', async ({ page }) => {
-    await page.goto('/login')
+    await page.goto('/auth/login')
     await page.getByLabel('Email').fill('e2e-admin@example.com')
     await page.getByLabel('Password').fill('E2e-Admin-Pass-2026')
     await page.getByRole('button', { name: 'Sign in' }).click()
@@ -46,7 +46,7 @@ test.describe('authentication and device list', () => {
   })
 
   test('filters the list as the user types', async ({ page }) => {
-    await page.goto('/login')
+    await page.goto('/auth/login')
     await page.getByLabel('Email').fill('e2e-admin@example.com')
     await page.getByLabel('Password').fill('E2e-Admin-Pass-2026')
     await page.getByRole('button', { name: 'Sign in' }).click()
@@ -67,16 +67,16 @@ test.describe('authentication and device list', () => {
   })
 
   test('signs out and revokes access', async ({ page }) => {
-    await page.goto('/login')
+    await page.goto('/auth/login')
     await page.getByLabel('Email').fill('e2e-admin@example.com')
     await page.getByLabel('Password').fill('E2e-Admin-Pass-2026')
     await page.getByRole('button', { name: 'Sign in' }).click()
     await expect(page.getByRole('heading', { name: 'Devices' })).toBeVisible()
 
     await page.getByRole('button', { name: 'Sign out' }).click()
-    await expect(page).toHaveURL(/\/login/)
+    await expect(page).toHaveURL((url) => url.pathname === '/auth/login')
 
     await page.goto('/alerts')
-    await expect(page).toHaveURL(/\/login/)
+    await expect(page).toHaveURL((url) => url.pathname === '/auth/login')
   })
 })
