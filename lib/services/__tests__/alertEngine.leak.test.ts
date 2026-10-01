@@ -3,6 +3,7 @@ import { createMigrator } from '@/lib/db/migrator'
 import { logger } from '@/lib/utils/logger'
 import type { Device } from '@/lib/types'
 import { randomUUID } from 'node:crypto'
+import { sql } from 'kysely'
 
 jest.mock('@/lib/utils/logger', () => ({
   logger: {
@@ -26,12 +27,28 @@ describe('Alert Engine Cross-User Leak Prevention', () => {
     if (migrate.error) throw migrate.error
   })
 
-  beforeEach(async () => {
-    await db.deleteFrom('notifications').execute()
-    await db.deleteFrom('device_alerts').execute()
-    await db.deleteFrom('devices').execute()
-    await db.deleteFrom('users').execute()
-    await db.deleteFrom('sessions').execute()
+beforeEach(async () => {
+    // Children before parents, every time. `sessions.user_id` and
+    // `user_settings.user_id` both reference `users`, and `notifications` and
+    // `device_alerts` reference both users and devices. Deleting `users` before
+    // `sessions` only worked while no session row happened to exist. On SQLite
+    // each suite gets a private :memory: database, so that held by luck; against
+    // MariaDB or MySQL, where the run shares one schema, a row left behind by
+    // an earlier suite would make this throw instead of clearing.
+    for (const table of [
+      'notifications',
+      'device_alerts',
+      'sessions',
+      'user_settings',
+      'connection_logs',
+      'bandwidth_hourly',
+      'bandwidth_metrics',
+      'devices',
+      'device_categories',
+      'users',
+    ] as const) {
+      await db.deleteFrom(table).execute()
+    }
 
     userA = { id: randomUUID(), email: 'user-a@example.com', name: 'User A' }
     userB = { id: randomUUID(), email: 'user-b@example.com', name: 'User B' }
@@ -401,6 +418,21 @@ describe('Alert Engine Cross-User Leak Prevention', () => {
   })
 
   describe('Database constraints enforce ownership', () => {
+// Without this the two tests below can only report "function did not
+    // throw", which is indistinguishable from the constraint being absent and
+    // from the constraint existing but not being enforced on this connection.
+    // Enforcement is per connection and is the thing most likely to be quietly
+    // lost, so assert it rather than inferring it. The switch is spelled
+    // differently per dialect, hence the branch.
+    it('foreign key enforcement is actually active on this connection', async () => {
+      if (process.env.DB_CLIENT === 'mysql') {
+        const result = await sql<{ foreign_key_checks: number }>`SELECT @@foreign_key_checks AS foreign_key_checks`.execute(db)
+        expect(Number(result.rows[0]?.foreign_key_checks)).toBe(1)
+      } else {
+        const result = await sql<{ foreign_keys: number }>`PRAGMA foreign_keys`.execute(db)
+        expect(Number(result.rows[0]?.foreign_keys)).toBe(1)
+      }
+    })
     it('device_alerts has foreign key to users', async () => {
       const fakeUserId = randomUUID()
       await expect(

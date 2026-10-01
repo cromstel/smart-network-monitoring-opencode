@@ -54,8 +54,16 @@ test.describe('authentication and device list', () => {
 
     await page.getByPlaceholder('Search devices...').fill('NAS')
 
-    await expect(page.getByText('NAS Server')).toBeVisible()
-    await expect(page.getByText("Ana's iPhone")).toBeHidden()
+    // Order the waits so the one that can actually block comes first.
+    // "NAS Server" is already in the unfiltered list, so asserting it is
+    // visible returns immediately and proves nothing about whether the filter
+    // has been applied; the second assertion then raced the response and
+    // failed roughly one full run in four. "Anas iPhone" is present before
+    // the search and absent after it, so waiting for it to disappear is the
+    // assertion that genuinely blocks until the filtered results have rendered.
+    await expect(page.getByText("Ana's iPhone")).toBeHidden({ timeout: 15_000 })
+    await expect(page.getByText("NAS Server")).toBeVisible()
+    await expect(page.getByText("Living Room TV")).toBeHidden({ timeout: 15_000 })
   })
 
   test('signs out and revokes access', async ({ page }) => {

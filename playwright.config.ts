@@ -29,7 +29,13 @@ export default defineConfig({
         // scripts/reset-e2e-db.mjs.
         command: `npm run db:reset:e2e && npm run db:seed:e2e && npm run start -- --port ${PORT}`,
         url: `${baseURL}/api/health`,
-        reuseExistingServer: !process.env.CI,
+        // Never reuse. The webServer command resets and seeds the database
+        // before starting, so a reused server skips that entirely and serves
+        // whatever database it happened to be holding. The results are then
+        // silently wrong rather than obviously broken: a run against a stale
+        // server reported 6 of 17 specs and took three times as long, with
+        // no error explaining why. Slower local iteration, correct results.
+        reuseExistingServer: false,
         timeout: 120_000,
         env: {
           NODE_ENV: 'production',
