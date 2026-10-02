@@ -101,6 +101,78 @@ describe.each(ACTIVE)('deviceRepository (client: %s)', (dialect) => {
     expect((await deviceRepo.listDevices({ search: '3C:22:FB' })).pagination.total).toBe(1)
   })
 
+  it('searches case-insensitively, on both engines', async () => {
+    // Found by an E2E flake rather than by reading the code. `LIKE` is
+    // case-sensitive on MySQL 8.4 and case-insensitive on SQLite for ASCII, so
+    // the identical query returned different answers depending on the engine:
+    // a user searching `nas` found "NAS Server" on SQLite and nothing on MySQL.
+    // People do not think of a search box is case-sensitive, so both sides of
+    // the comparison are lowercased.
+    //
+    // Verified to bite: removing `lower()` from the query fails this on MySQL
+    // 8.4 (8 of 8 tests fail) and still passes on SQLite, which is exactly why
+    // the dual-dialect suite exists.
+    await deviceRepo.upsertFromScan({
+      macAddress: 'AA:00:00:00:00:01',
+      ipAddress: '192.168.1.90',
+      hostname: 'synology-nas',
+      manufacturer: null,
+    })
+    await deviceRepo.upsertFromScan({
+      macAddress: 'AA:00:00:00:00:02',
+      ipAddress: '192.168.1.91',
+      hostname: 'unrelated-box',
+      manufacturer: null,
+    })
+
+    for (const term of ['NAS', 'nas', 'Nas', 'nAs']) {
+      const found = await deviceRepo.listDevices({ search: term })
+      expect({ term, total: found.pagination.total }).toEqual({ term, total: 1 })
+    }
+  })
+
+  it('treats LIKE wildcards in a search term as literal characters', async () => {
+    // Without escaping, searching for `50%` matches every row, because `%` is a
+    // wildcard. `_` is a single-character wildcard and has the same problem.
+    // The hostnames below contain the literal characters, not the substrings
+    // `50-percent` and `disk_plenty`, so a match proves real escaping rather
+    // than an incidental substring hit.
+    await deviceRepo.upsertFromScan({
+      macAddress: 'BB:00:00:00:00:01',
+      ipAddress: '192.168.1.80',
+      hostname: 'backup-50%-of-total',
+      manufacturer: null,
+    })
+    await deviceRepo.upsertFromScan({
+      macAddress: 'BB:00:00:00:00:02',
+      ipAddress: '192.168.1.81',
+      hostname: 'backup-plenty-of-total',
+      manufacturer: null,
+    })
+    await deviceRepo.upsertFromScan({
+      macAddress: 'BB:00:00:00:00:03',
+      ipAddress: '192.168.1.82',
+      hostname: 'slot_A_free',
+      manufacturer: null,
+    })
+
+    // Only the row whose hostname literally contains "50%" may match. An
+    // unescaped `%` here would match both backup rows.
+    const pct = await deviceRepo.listDevices({ search: '50%' })
+    expect(pct.pagination.total).toBe(1)
+    expect(pct.data[0]?.hostname).toBe('backup-50%-of-total')
+
+    // A bare `_` must match one literal underscore, not any single character.
+    const underscore = await deviceRepo.listDevices({ search: 'slot_A_free' })
+    expect(underscore.pagination.total).toBe(1)
+    expect(underscore.data[0]?.hostname).toBe('slot_A_free')
+
+    // And it must not behave as a wildcard: `slot_X_free` is not a literal
+    // substring of anything, so an unescaped `_` would have matched the row
+    // above.
+    expect((await deviceRepo.listDevices({ search: 'slot_X_free' })).pagination.total).toBe(0)
+  })
+
   it('updates a device and nulls a name, persisting through a read', async () => {
     const device = seedDevice()
     await deviceRepo.upsertFromScan({

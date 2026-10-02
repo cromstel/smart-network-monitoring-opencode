@@ -90,6 +90,17 @@ test.describe('authentication and device list', () => {
     await signIn(page, '/devices')
     await expect(page.getByRole('heading', { level: 1, name: 'Devices' })).toBeVisible()
 
+    // `/devices` is a statically prerendered page, so the search input is in the
+    // HTML before React hydrates. Waiting on the heading proves nothing about
+    // interactivity — the heading ships in the static shell. Typing into the
+    // input before hydration sets the DOM value but never fires the component's
+    // onChange, so `search` stays '' and the list never filters at all. That is
+    // what made this test fail intermittently: it had found the input, typed
+    // into it, and then asserted against a list that had never been asked to
+    // filter. Waiting for a row to appear proves the client-side query resolved,
+    // which cannot happen until the component is mounted and interactive.
+    await expect(page.getByText('NAS Server')).toBeVisible()
+
     await page.getByPlaceholder('Search devices...').fill('NAS')
 
     // Order the waits so the one that can actually block comes first.

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ExpressionBuilder } from 'kysely'
+import { sql, type ExpressionBuilder } from 'kysely'
 import { db } from '../client'
 import type { DB } from '../schema'
 import type {
@@ -14,14 +14,49 @@ function findSet<T extends string>(value: T | undefined): value is T {
   return value !== undefined && value !== ''
 }
 
+/**
+ * Matches the search term against name, hostname, IP and MAC.
+ *
+ * Two things this gets right that the obvious implementation does not:
+ *
+ * 1. **Case-insensitive.** `LIKE` is case-sensitive on MySQL when the column
+ *    collation is `utf8mb4_bin`-like, and case-insensitive on SQLite's default
+ *    `BINARY` collation only by accident of ASCII. Users type `nas`, `NAS` and
+ *    `Nas` interchangeably and expect the same three results. So the term is
+ *    lowercased and the columns are lowercased to match, which is portable
+ *    across both dialects without relying on either one's collation defaults.
+ *
+ * 2. **The term is escaped.** A search for `50%` or `_foo` would otherwise be
+ *    interpreted as a LIKE wildcard and match rows the user did not ask for.
+ *    `%` and `_` are escaped with an explicit escape character.
+ */
 function searchFilter(search: string) {
-  const like = `%${search}%`
+  const term = search.trim().toLowerCase()
+  // Escape the LIKE metacharacters so they are matched literally. A user
+  // searching for `50%` or a hostname containing `_` means those characters,
+  // not wildcards.
+  //
+  // The escape character is `\` rather than the SQL-standard default for a
+  // reason that cost a debugging cycle: the default IS `\`, so writing
+  // `ESCAPE '\'` looks like a no-op and is easy to get wrong in a JS template
+  // literal, where the doubling rules differ from SQL's. SQLite rejects
+  // anything that is not exactly one character, so a mis-escaped clause fails
+  // loudly rather than silently — which is better, but still a trap. Naming the
+  // character in a constant keeps the JS escaping and the SQL literal in view
+  // together.
+  const ESCAPE = '\\'
+  const escaped = term.replace(/([\\%_])/g, (m) => `${ESCAPE}${m}`)
+  const like = `%${escaped}%`
+
+  // Written as raw SQL because Kysely's `eb(col, 'like', value)` form has no
+  // slot for an ESCAPE clause, and silently dropping the escaping is worse than
+  // a few lines of SQL.
   return (eb: ExpressionBuilder<DB, 'devices'>) =>
     eb.or([
-      eb('device_name', 'like', like),
-      eb('hostname', 'like', like),
-      eb('ip_address', 'like', like),
-      eb('mac_address', 'like', like),
+      sql<boolean>`lower(device_name) like ${like} escape ${ESCAPE}`,
+      sql<boolean>`lower(hostname) like ${like} escape ${ESCAPE}`,
+      sql<boolean>`lower(ip_address) like ${like} escape ${ESCAPE}`,
+      sql<boolean>`lower(mac_address) like ${like} escape ${ESCAPE}`,
     ])
 }
 

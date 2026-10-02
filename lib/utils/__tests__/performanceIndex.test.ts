@@ -73,10 +73,26 @@ if (!indexExists || !anyReportExists) {
   )
 }
 
+/**
+ * Read the index lazily, inside the test bodies.
+ *
+ * `describe.skip` still executes its callback — the callback runs, the tests
+ * inside it are simply never run. So a `readFileSync` at describe-body level
+ * executes even when the suite is skipped, and the "skip" throws ENOENT instead.
+ * That is what happened in CI: `doc/` is gitignored, so the file does not exist
+ * on a fresh checkout, and this suite failed the whole unit-test job.
+ *
+ * The lesson is the one the DB tests keep relearning: a guard that only
+ * surrounds the assertions guards nothing if the work happens outside them.
+ */
+function readIndex(): string {
+  return readFileSync(path.join(DOC, INDEX), 'utf8')
+}
+
 describeIfReports('doc/PERFORMANCE.md agrees with the generated reports', () => {
-  const index = readFileSync(path.join(DOC, INDEX), 'utf8')
 
   it('links every engine report that exists', () => {
+    const index = readIndex()
     for (const [engine, file] of Object.entries(REPORTS)) {
       if (!existsSync(path.join(DOC, file))) continue
       expect(index).toContain(file)
@@ -89,6 +105,7 @@ describeIfReports('doc/PERFORMANCE.md agrees with the generated reports', () => 
     // The index presents one row per measurement with three engine columns.
     // Walk its Results table and check each figure against the report it
     // claims to summarise.
+    const index = readIndex()
     const order: Engine[] = ['sqlite', 'mysql', 'mariadb']
     const rows = index
       .split('\n')
@@ -126,6 +143,7 @@ describeIfReports('doc/PERFORMANCE.md agrees with the generated reports', () => 
   it('does not claim an all-pass the reports do not support', () => {
     // If any report carries a FAIL, the index must not say "All N measurements
     // pass" — the whole point of the gate is that a miss is visible.
+    const index = readIndex()
     const failures: string[] = []
     for (const [engine, file] of Object.entries(REPORTS) as Array<[Engine, string]>) {
       if (!existsSync(path.join(DOC, file))) continue
@@ -144,6 +162,7 @@ describeIfReports('doc/PERFORMANCE.md agrees with the generated reports', () => 
   it('records the engine version each report came from', () => {
     // The engine identity has to be in the index, because DB_CLIENT=mysql
     // covers both servers and the filename alone does not disambiguate.
+    const index = readIndex()
     for (const [engine, file] of Object.entries(REPORTS) as Array<[Engine, string]>) {
       const p = path.join(DOC, file)
       if (!existsSync(p)) continue

@@ -95,10 +95,18 @@ jobs:
             # running, which makes a service look ready before it is.
             health: 'healthcheck.sh --connect --innodb_initialized'
             admin: 'mariadb'
+            # What the server must call itself for this row to be honoured.
+            # Carried per row rather than derived from `label` on purpose:
+            # "MySQL 8.4" contains the word MySQL, but VERSION() reports
+            # "8.4.11" and does not, so matching on the label is exactly the
+            # mistake that made this check unable to pass. See
+            # scripts/verify-engine.js.
+            identify: 'mariadb'
           - label: MySQL 8.4
             image: mysql:8.4
             health: 'mysqladmin ping -h 127.0.0.1 -uroot -pci-root'
             admin: 'mysql'
+            identify: 'mysql'
 
     services:
       db:
@@ -140,31 +148,9 @@ jobs:
       # mistaken for the wrong server. This is the check that would have caught
       # the previous job silently testing something other than what it claimed.
       - name: Confirm the engine under test
-        run: |
-          node -e "
-          const mysql = require('mysql2/promise');
-          (async () => {
-            const c = await mysql.createConnection({
-              host: process.env.DB_HOST,
-              port: Number(process.env.DB_PORT),
-              user: process.env.DB_USER,
-              password: process.env.DB_PASSWORD,
-              database: process.env.DB_NAME,
-            });
-            const [r] = await c.query('SELECT VERSION() v, @@version_comment c');
-            console.log('engine  :', r[0].v);
-            console.log('comment :', r[0].c);
-            const [g] = await c.query('SELECT @@collation_server co');
-            console.log('collate :', g[0].co);
-            await c.end();
-            const expected = '${{ matrix.label }}'.split(' ')[0].toLowerCase();
-            if (!r[0].v.toLowerCase().includes(expected)) {
-              console.error('REFUSING: expected ' + expected + ', got ' + r[0].v);
-              process.exit(1);
-            }
-            console.log('matches matrix entry: ' + expected);
-          })().catch((e) => { console.error('connect failed:', e.code || e.message); process.exit(1); });
-          "
+        # A green run attributed to the wrong engine is worse than no run.
+        # The rule, and the bug this replaces, are documented in the script.
+        run: node scripts/verify-engine.js ${{ matrix.identify }}
         env:
           DB_HOST: 127.0.0.1
           DB_PORT: 3306
@@ -251,10 +237,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # `health` and `identify` differ per engine, so both are carried on
+          # the row. The health command is the same set the test job uses:
+          # MariaDB ships its own readiness probe, and using `mysqladmin` for it
+          # was what made this job's container fail to initialise.
           - label: mariadb
             image: mariadb:12.3
+            health: 'healthcheck.sh --connect --innodb_initialized'
+            identify: 'mariadb'
           - label: mysql
             image: mysql:8.4
+            health: 'mysqladmin ping -h 127.0.0.1 -uroot -pperf-root'
+            identify: 'mysql'
 
     services:
       db:
@@ -273,10 +267,10 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -umonitor -pperf-monitor"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 12
+          --health-cmd="${{ matrix.health }}"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
 
     steps:
       - uses: actions/checkout@v4
@@ -290,29 +284,15 @@ jobs:
         run: npm ci
 
       - name: Confirm the engine under test
-        # A green run attributed to the wrong engine is worse than no run, so
-        # the engine is verified before anything is measured. DB_CLIENT=mysql
-        # names the driver, not the server.
-        run: |
-          node -e "
-          const mysql = require('mysql2/promise');
-          (async () => {
-            const c = await mysql.createConnection({
-              host: '127.0.0.1', port: 3306,
-              user: 'monitor', password: 'perf-monitor', database: 'home_monitor_perf',
-            });
-            const [r] = await c.query('SELECT VERSION() v, @@version_comment c');
-            console.log('engine  :', r[0].v);
-            console.log('comment :', r[0].c);
-            await c.end();
-            const expected = '${{ matrix.label }}'.toLowerCase();
-            if (!r[0].v.toLowerCase().includes(expected)) {
-              console.error('REFUSING: expected ' + expected + ', got ' + r[0].v);
-              process.exit(1);
-            }
-            console.log('matches matrix entry: ' + expected);
-          })().catch((e) => { console.error('connect failed:', e.code || e.message); process.exit(1); });
-          "
+        # Same script as the test job, and for the same reason: a green
+        # benchmark attributed to the wrong engine is worse than no benchmark.
+        run: node scripts/verify-engine.js ${{ matrix.identify }}
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_USER: monitor
+          DB_PASSWORD: perf-monitor
+          DB_NAME: home_monitor_perf
 
       - name: Build the performance dataset
         run: npm run perf:dataset
@@ -374,6 +354,17 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
+
+      # Playwright's webServer runs `npm run start`, which is `next start` and
+      # requires a production build in .next/. Without this step the job dies
+      # with "Could not find a production build" before a single spec runs.
+      # Locally this was invisible because the build already existed in the
+      # working tree, which is why the E2E suite was believed to be wired up.
+      - name: Build
+        run: npm run build
+        env:
+          SESSION_SECRET: e2e-session-secret-not-for-production-000000
+          ENCRYPTION_KEY: e2e-encryption-key-not-for-production-0000000000
 
       - name: Run E2E
         run: npm run test:e2e
