@@ -112,7 +112,7 @@ jobs:
           {
             echo "## Soak result"
             echo ""
-            echo "- Segments: 4 x ${{ github.event.inputs.minutes || 330 }} min (~${{ (github.event.inputs.minutes || 330) * 4 / 60 }}h wall clock, four separate processes)"
+            echo "- Segments: 4 x ${{ github.event.inputs.minutes || 330 }} minutes, run sequentially as four separate processes"
             echo "- Branch: \`${GITHUB_REF_NAME}\`"
             echo "- Commit: \`${GITHUB_SHA}\`"
             echo ""
