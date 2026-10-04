@@ -366,6 +366,27 @@ jobs:
           SESSION_SECRET: e2e-session-secret-not-for-production-000000
           ENCRYPTION_KEY: e2e-encryption-key-not-for-production-0000000000
 
+      # PRD §5: "dashboard first contentful paint under 2s on a warm cache". FCP
+      # is a browser paint event, so nothing server-side can measure it — which
+      # is why `scripts/perf.ts` explicitly disclaimed it and the target sat
+      # unevidenced. It reuses this job's browser install and the build above
+      # rather than adding a job that would repeat both.
+      - name: Measure first contentful paint (PRD §5)
+        run: npm run perf:fcp
+        env:
+          DB_CLIENT: sqlite
+          DB_FILE: ./data/fcp.db
+          SESSION_SECRET: fcp-session-secret-not-for-production-000000
+          ENCRYPTION_KEY: fcp-encryption-key-not-for-production-00000000
+
+      - name: Upload the FCP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fcp-report
+          path: doc/FCP.md
+          retention-days: 7
+
       - name: Run E2E
         run: npm run test:e2e
         env:
