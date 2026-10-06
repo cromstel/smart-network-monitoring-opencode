@@ -1,10 +1,28 @@
 import { Scanner, DiscoveredDevice } from './types'
 import { spawn } from 'node:child_process'
-import { resolve } from 'node:path'
 import { logger } from '@/lib/utils/logger'
+import { getConfig } from '@/lib/config'
 
 const ARP_SCAN_BIN = process.platform === 'win32' ? 'arp-scan.exe' : 'arp-scan'
 const CACHE_TTL = 5 * 60 * 1000
+
+/**
+ * The configured subnet, used when `scan()` is called without one.
+ *
+ * Resolved lazily rather than at module scope: `getConfig()` validates the
+ * environment, and reading it on import would make this module unloadable in
+ * any context that has not already built a config — the tests included.
+ * `isAvailable()` and `scan()` both go through this one function, so they
+ * cannot disagree about whether there is anything to scan.
+ */
+function configuredSubnet(): string | undefined {
+  try {
+    return getConfig().NETWORK_SUBNET
+  } catch (err) {
+    logger.warn({ scanner: 'arp', err }, 'could not read NETWORK_SUBNET')
+    return undefined
+  }
+}
 
 let cachedAvailable: boolean | null = null
 let cachedAt = 0
@@ -74,6 +92,14 @@ export const arpScanner: Scanner = {
       return cachedAvailable as boolean
     }
 
+    // Mirrors scan(): a target must actually be passed, so `which` has to be
+    // asking the same question `spawn` will ask.
+    if (!configuredSubnet()) {
+      logger.warn({ scanner: 'arp' }, 'NETWORK_SUBNET is empty; nothing to scan')
+      setCache(false)
+      return false
+    }
+
     const binPath = await which(ARP_SCAN_BIN)
     if (!binPath) {
       logger.warn({ scanner: 'arp' }, 'arp-scan binary not found in PATH')
@@ -102,8 +128,29 @@ export const arpScanner: Scanner = {
     const binPath = await which(ARP_SCAN_BIN)
     if (!binPath) throw new Error('arp-scan binary disappeared')
 
+    // A caller-supplied subnet wins, so `scan(x)` really does scan `x`. The
+    // configured subnet is the fallback, not an override.
+    const target = subnet || configuredSubnet()
+    if (!target) throw new Error('no subnet to scan')
+
+    // `--localnet` and an explicit target are mutually exclusive. arp-scan
+    // treats the extra positional argument as a target and refuses the pair
+    // outright:
+    //
+    //     ERROR: You can not specify targets with the --localnet option
+    //     exit=1
+    //
+    // So the argv this used to build could never succeed, on any platform, for
+    // any subnet. The ARP backend — F-02 and F-42, both P0 — was dead on
+    // arrival and no test noticed, because the test suite only ever exercises
+    // the "binary missing" path and never inspects the arguments.
+    //
+    // `--localnet` is dropped: `subnet` is already the target, and honouring an
+    // explicitly configured subnet is the point of the `NETWORK_SUBNET` setting.
+    const args = ['--numeric', '--quiet', target]
+
     return new Promise((resolve, reject) => {
-      const proc = spawn(binPath, ['--localnet', '--numeric', '--quiet', subnet], {
+      const proc = spawn(binPath, args, {
         timeout: 30_000,
       })
 
