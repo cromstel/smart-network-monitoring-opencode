@@ -15,6 +15,15 @@ interface Settings {
   theme: 'dark' | 'light'
 }
 
+/** What GET /api/router-config returns — never the credential. */
+interface RouterConfigView {
+  routerType: string
+  routerIp: string
+  port: number
+  username: string
+  routerName: string | null
+}
+
 export default function SettingsPage() {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<Partial<Settings>>({})
@@ -48,6 +57,57 @@ export default function SettingsPage() {
       setMessage({ tone: 'ok', text: 'Saved. The scan interval applies from the next cycle.' })
     },
     onError: (e) => setMessage({ tone: 'error', text: e instanceof Error ? e.message : 'Save failed' }),
+  })
+
+  // --- Router configuration (F-40): a separate form and mutation because it
+  // posts to a different endpoint with its own ADMIN gate and its own
+  // success/error state. The password is write-only: it is encrypted on the
+  // server and never returned, so the field always starts blank.
+  const [routerForm, setRouterForm] = useState({
+    routerType: 'asus',
+    routerIp: '',
+    port: '80',
+    username: 'admin',
+    password: '',
+  })
+  const [routerMessage, setRouterMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+
+  const routerConfig = useQuery({
+    queryKey: ['router-config'],
+    queryFn: async () => {
+      const res = await fetch('/api/router-config')
+      if (!res.ok) throw new Error('Failed to load router config')
+      return (await res.json()) as { data: RouterConfigView | null }
+    },
+  })
+
+  const saveRouter = useMutation({
+    mutationFn: async (payload: {
+      routerType: string
+      routerIp: string
+      port: number
+      username: string
+      password: string
+    }) => {
+      const res = await fetch('/api/router-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.message ?? 'Failed to save router config')
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['router-config'] })
+      setRouterForm((f) => ({ ...f, password: '' }))
+      setRouterMessage({
+        tone: 'ok',
+        text: 'Router saved. It is used on the next scan cycle if it answers.',
+      })
+    },
+    onError: (e) => setRouterMessage({ tone: 'error', text: e instanceof Error ? e.message : 'Save failed' }),
   })
 
   const current: Settings | undefined = settings.data?.data
@@ -187,6 +247,134 @@ export default function SettingsPage() {
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
         >
           {save.isPending ? 'Saving…' : 'Save changes'}
+        </button>
+      </form>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          const ip = routerForm.routerIp.trim()
+          const port = Number(routerForm.port)
+          if (!ip) {
+            setRouterMessage({ tone: 'error', text: 'Router IP is required.' })
+            return
+          }
+          if (!Number.isInteger(port) || port < 1 || port > 65535) {
+            setRouterMessage({ tone: 'error', text: 'Port must be a number between 1 and 65535.' })
+            return
+          }
+          if (!routerForm.password) {
+            setRouterMessage({ tone: 'error', text: 'Password is required on every save.' })
+            return
+          }
+          saveRouter.mutate({
+            routerType: routerForm.routerType,
+            routerIp: ip,
+            port,
+            username: routerForm.username.trim() || 'admin',
+            password: routerForm.password,
+          })
+        }}
+        className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/50 p-5"
+      >
+        <fieldset className="space-y-4">
+          <legend className="text-sm font-medium text-slate-300">Router (ASUS) — optional</legend>
+          <p className="text-xs text-slate-500">
+            When configured, the router API is used for discovery instead of ARP or simulated
+            scanning. The password is stored encrypted (AES-256-GCM), never shown again, and is
+            required on every save.
+          </p>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm text-slate-300">
+              Type
+              <select
+                value={routerForm.routerType}
+                onChange={(e) => setRouterForm((f) => ({ ...f, routerType: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              >
+                <option value="asus">ASUS</option>
+                <option value="tplink">TP-Link</option>
+                <option value="netgear">Netgear</option>
+                <option value="generic">Generic</option>
+              </select>
+            </label>
+
+            <label className="block text-sm text-slate-300">
+              Router IP
+              <input
+                value={routerForm.routerIp}
+                onChange={(e) => setRouterForm((f) => ({ ...f, routerIp: e.target.value }))}
+                placeholder="192.168.1.1"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              />
+            </label>
+
+            <label className="block text-sm text-slate-300">
+              Port
+              <input
+                type="number"
+                min={1}
+                max={65535}
+                value={routerForm.port}
+                onChange={(e) => setRouterForm((f) => ({ ...f, port: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              />
+            </label>
+
+            <label className="block text-sm text-slate-300">
+              Username
+              <input
+                value={routerForm.username}
+                onChange={(e) => setRouterForm((f) => ({ ...f, username: e.target.value }))}
+                placeholder="admin"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              />
+            </label>
+
+            <label className="block text-sm col-span-full text-slate-300">
+              Password
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={routerForm.password}
+                onChange={(e) => setRouterForm((f) => ({ ...f, password: e.target.value }))}
+                placeholder={
+                  routerConfig.data?.data ? 'Stored — type to replace' : 'Router admin password'
+                }
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              />
+            </label>
+          </div>
+        </fieldset>
+
+        <p className="text-xs text-slate-500">
+          {routerConfig.data?.data
+            ? `Saved: ${routerConfig.data.data.routerType} @ ${routerConfig.data.data.routerIp}:${routerConfig.data.data.port} (${routerConfig.data.data.username})`
+            : routerConfig.isError
+              ? 'Could not load the saved router configuration.'
+              : 'No router configured yet.'}
+        </p>
+
+        {routerMessage && (
+          <p
+            role="status"
+            className={
+              routerMessage.tone === 'ok'
+                ? 'text-sm text-emerald-400'
+                : 'rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-sm text-red-300'
+            }
+          >
+            {routerMessage.text}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={saveRouter.isPending}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+        >
+          {saveRouter.isPending ? 'Saving…' : 'Save router'}
         </button>
       </form>
     </section>
