@@ -49,6 +49,35 @@ function hasRawCapability(): Promise<boolean> {
   })
 }
 
+/**
+ * Exec probe: can the binary be execve'd at all?
+ *
+ * `getcap` alone is not proof. The kernel refuses to exec a file whose file
+ * capabilities exceed the execing process's capability bounding set (execve
+ * returns EPERM) while `getcap` keeps printing those very caps — so a
+ * getcap-positive binary can still be unrunnable. This was not theoretical:
+ * an image granting `cap_net_raw,cap_net_admin+eip` under Docker's default
+ * bounding set (no NET_ADMIN) reports capable via getcap and fails every
+ * scan at exec time. `arp-scan --help` exits 0 on a runnable binary and is
+ * refused with EPERM on one the kernel will not load.
+ */
+function canExecBinary(): Promise<boolean> {
+  if (process.platform === 'win32') return Promise.resolve(false)
+  return new Promise((resolve) => {
+    const proc = spawn(ARP_SCAN_BIN, ['--help'])
+    let settled = false
+    const done = (ok: boolean) => {
+      if (!settled) {
+        settled = true
+        resolve(ok)
+      }
+    }
+    proc.on('close', (code) => done(code === 0))
+    // spawn surfaces the child's execve EPERM here rather than as an exit code.
+    proc.on('error', () => done(false))
+  })
+}
+
 function parseArpScanOutput(output: string): DiscoveredDevice[] {
   const devices: DiscoveredDevice[] = []
   const lines = output.split('\n')
@@ -107,14 +136,18 @@ export const arpScanner: Scanner = {
       return false
     }
 
-    const rawCap = await hasRawCapability()
-    if (!rawCap && process.platform !== 'win32') {
-      logger.warn(
-        { scanner: 'arp', binary: binPath },
-        'arp-scan found but lacks CAP_NET_RAW; requires root or setcap cap_net_raw+ep'
-      )
-      setCache(false)
-      return false
+    // Both probes have to pass: getcap advertises cap_net_raw AND the kernel
+    // actually permits the exec. Either one alone can lie — see canExecBinary().
+    if (process.platform !== 'win32') {
+      const capable = (await hasRawCapability()) && (await canExecBinary())
+      if (!capable) {
+        logger.warn(
+          { scanner: 'arp', binary: binPath },
+          'arp-scan found but cannot run with CAP_NET_RAW; needs setcap cap_net_raw+eip granted within the container bounding set'
+        )
+        setCache(false)
+        return false
+      }
     }
 
     setCache(true)

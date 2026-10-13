@@ -36,9 +36,21 @@ WORKDIR /app
 # `arp-scan` powers the ARP scanner (PRD F-02). Without NET_RAW the container
 # falls back to the simulated scanner, which is fine for a demo but not for
 # real discovery. `setcap` below grants it the capability it needs.
+#
+# cap_net_raw ONLY. The kernel refuses to execve() a file whose file
+# capabilities exceed the execing process's capability bounding set — execve
+# returns EPERM — and cap_net_admin is not in Docker's default capability set.
+# A cap_net_admin-carrying binary therefore cannot start at all unless every
+# deployment also adds `cap_add: [NET_ADMIN]`, and the failure is invisible to
+# `getcap`, which still reports the caps as present. (Verified in a running
+# container: exec EPERM with and without `cap_add: NET_RAW`; exec succeeds
+# with `cap_add: NET_ADMIN` or with the grant reduced to cap_net_raw.)
+# Raw sockets — all arp-scan needs — require NET_RAW alone, and NET_RAW is in
+# Docker's default set plus docker-compose.yml's explicit `cap_add`.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends arp-scan ca-certificates tini \
- && rm -rf /var/lib/apt/lists/*
+ && apt-get install -y --no-install-recommends arp-scan libcap2-bin ca-certificates tini \
+ && rm -rf /var/lib/apt/lists/* \
+ && setcap cap_net_raw+eip /usr/sbin/arp-scan
 
 ENV NODE_ENV=production \
     PORT=3000 \
@@ -50,7 +62,6 @@ ENV NODE_ENV=production \
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
-COPY --from=build /app/public ./public
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/next.config.mjs ./next.config.mjs
 COPY --from=build /app/instrumentation.ts ./instrumentation.ts
