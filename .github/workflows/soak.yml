@@ -7,9 +7,11 @@ name: Soak
 # artefacts rather than in somebody's terminal scrollback.
 on:
   schedule:
-    # 03:17 UTC nightly. Deliberately not on the hour: every scheduled workflow
-    # in the world fires at :00, and the queue delays are nobody's problem.
-    - cron: '17 3 * * *'
+    # Weekly, Sunday 03:00 UTC. Reduced from nightly (`17 3 * * *`) once the
+    # segmented pipeline was proven green (run 36950230328): re-burning 22h of
+    # Actions minutes a day for a codebase that is not changing buys nothing.
+    # Off the hour, as before - the queue delays at :00 are nobody's problem.
+    - cron: '0 3 * * 0'
   workflow_dispatch:
     inputs:
       minutes:
