@@ -9,10 +9,20 @@
 import { randomUUID } from 'node:crypto'
 import { db } from '../lib/db/client'
 import { createMigrator } from '../lib/db/migrator'
+import { hashPassword } from '../lib/utils/crypto'
 import { logger } from '../lib/utils/logger'
 import type { DeviceType } from '../lib/types'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+// Platform admin credentials. Environment wins so a deployment can inject the
+// real secret without this script ever containing it; the fallback is a
+// dev-only password (this seed is for local development — production creates
+// its first account through /api/setup instead). Login verifies with bcrypt,
+// so the row must carry a real hash: the placeholder that used to live here
+// made the seeded admin unable to sign in.
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL?.trim() || 'admin@network-monitor.local'
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD?.trim() || 'Dev-Admin-2026!'
 
 const CATEGORIES = [
   { id: '10000000-0000-4000-8000-000000000001', name: 'Personal', color: '#3b82f6' },
@@ -165,10 +175,9 @@ async function run(): Promise<void> {
     .insertInto('users')
     .values({
       id: adminId,
-      email: 'admin@example.com',
-      // Placeholder — auth lands in Phase 3. Never used for a real login.
-      password_hash: 'seed-only-no-login',
-      name: 'Seed Admin',
+      email: ADMIN_EMAIL,
+      password_hash: await hashPassword(ADMIN_PASSWORD),
+      name: 'Platform Admin',
       role: 'ADMIN',
       is_active: 1,
       created_at: created,
