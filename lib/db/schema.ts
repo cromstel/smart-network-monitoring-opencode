@@ -129,6 +129,10 @@ export interface UserSettingsTable {
   notify_high_bandwidth: Generated<number>
   bandwidth_threshold: Generated<number>
   theme: Generated<string>
+  paystack_api_url: Generated<string>
+  paystack_secret: Generated<string>
+  paystack_access_token: Generated<string>
+  paystack_subscription_id: Generated<string>
   created_at: string
   updated_at: string
 }

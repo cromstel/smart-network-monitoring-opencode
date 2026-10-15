@@ -47,6 +47,10 @@ interface SettingsRow {
   notify_high_bandwidth: Int
   bandwidth_threshold: number | Int
   theme: string
+  paystack_api_url: string | null
+  paystack_secret: string | null
+  paystack_access_token: string | null
+  paystack_subscription_id: string | null
   created_at: string
   updated_at: string
 }
@@ -82,6 +86,10 @@ function rowToUserSettings(row: SettingsRow): UserSettings {
     notifyHighBandwidth: toBool(row.notify_high_bandwidth),
     bandwidthThreshold: toInt(row.bandwidth_threshold),
     theme: toTheme(row.theme),
+    paystackApiUrl: row.paystack_api_url ?? '',
+    paystackSecret: row.paystack_secret ?? '',
+    paystackAccessToken: row.paystack_access_token ?? '',
+    paystackSubscriptionId: row.paystack_subscription_id ?? '',
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   }
@@ -113,6 +121,10 @@ const DEFAULTS = {
   networkSubnet: '192.168.1.0/24',
   bandwidthThreshold: 100,
   theme: 'dark' as const,
+  paystackApiUrl: '',
+  paystackSecret: '',
+  paystackAccessToken: '',
+  paystackSubscriptionId: '',
 }
 
 export async function findUserSettings(userId: string): Promise<UserSettings | null> {
@@ -149,6 +161,14 @@ export async function upsertUserSettings(
     if ('bandwidthThreshold' in input && input.bandwidthThreshold != null)
       set.bandwidth_threshold = input.bandwidthThreshold
     if ('theme' in input && input.theme != null) set.theme = input.theme
+    if ('paystackApiUrl' in input && input.paystackApiUrl != null)
+      set.paystack_api_url = input.paystackApiUrl
+    if ('paystackSecret' in input && input.paystackSecret != null)
+      set.paystack_secret = input.paystackSecret
+    if ('paystackAccessToken' in input && input.paystackAccessToken != null)
+      set.paystack_access_token = input.paystackAccessToken
+    if ('paystackSubscriptionId' in input && input.paystackSubscriptionId != null)
+      set.paystack_subscription_id = input.paystackSubscriptionId
 
     await db.updateTable('user_settings').set(set).where('user_id', '=', input.userId).execute()
   } else {
@@ -166,6 +186,10 @@ export async function upsertUserSettings(
         notify_high_bandwidth: (input.notifyHighBandwidth ?? false) ? 1 : 0,
         bandwidth_threshold: input.bandwidthThreshold ?? DEFAULTS.bandwidthThreshold,
         theme: input.theme ?? DEFAULTS.theme,
+        paystack_api_url: input.paystackApiUrl ?? DEFAULTS.paystackApiUrl,
+        paystack_secret: input.paystackSecret ?? DEFAULTS.paystackSecret,
+        paystack_access_token: input.paystackAccessToken ?? DEFAULTS.paystackAccessToken,
+        paystack_subscription_id: input.paystackSubscriptionId ?? DEFAULTS.paystackSubscriptionId,
         created_at: now,
         updated_at: now,
       })

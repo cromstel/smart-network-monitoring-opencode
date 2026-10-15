@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 
+/** What GET /api/settings returns — never the credential values, only whether one is set. */
 interface Settings {
   networkSubnet: string
   scanIntervalSeconds: number
@@ -13,6 +14,10 @@ interface Settings {
   notifyHighBandwidth: boolean
   bandwidthThreshold: number
   theme: 'dark' | 'light'
+  paystackApiUrl: string
+  paystackSubscriptionId: string
+  paystackSecretSet: boolean
+  paystackAccessTokenSet: boolean
 }
 
 /** What GET /api/router-config returns — never the credential. */
@@ -54,9 +59,54 @@ export default function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
       setForm({})
+      setPaystackForm({ apiUrl: '', secret: '', accessToken: '', subscriptionId: '' })
       setMessage({ tone: 'ok', text: 'Saved. The scan interval applies from the next cycle.' })
     },
     onError: (e) => setMessage({ tone: 'error', text: e instanceof Error ? e.message : 'Save failed' }),
+  })
+
+  // --- PayStack billing (B-67). A separate form and mutation because it posts
+  // to the same endpoint with the same ADMIN gate, but the credentials are
+  // write-only: they are never returned by GET, so the inputs always start
+  // blank and only a submitted value changes the stored one. Same reasoning as
+  // the router password above, and the same password input type.
+  const [paystackForm, setPaystackForm] = useState({
+    apiUrl: '',
+    secret: '',
+    accessToken: '',
+    subscriptionId: '',
+  })
+  const [paystackMessage, setPaystackMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(
+    null
+  )
+
+  const savePaystack = useMutation({
+    mutationFn: async (payload: {
+      paystackApiUrl?: string
+      paystackSecret?: string
+      paystackAccessToken?: string
+      paystackSubscriptionId?: string
+    }) => {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.message ?? 'Failed to save PayStack settings')
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] })
+      setPaystackForm({ apiUrl: '', secret: '', accessToken: '', subscriptionId: '' })
+      setPaystackMessage({ tone: 'ok', text: 'PayStack saved.' })
+    },
+    onError: (e) =>
+      setPaystackMessage({
+        tone: 'error',
+        text: e instanceof Error ? e.message : 'Failed to save PayStack settings',
+      }),
   })
 
   // --- Router configuration (F-40): a separate form and mutation because it
@@ -375,6 +425,124 @@ export default function SettingsPage() {
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
         >
           {saveRouter.isPending ? 'Saving…' : 'Save router'}
+        </button>
+      </form>
+
+      {/* B-67: PayStack billing. Its own form because the endpoint carries an
+          ADMIN gate and its own state, and because every field is write-only —
+          a stored credential is never sent back to the browser, so the inputs
+          stay blank and leaving one untouched keeps the existing value. */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          const apiUrl = paystackForm.apiUrl.trim()
+          if (apiUrl && !/^https?:\/\/.+/.test(apiUrl)) {
+            setPaystackMessage({ tone: 'error', text: 'API URL must start with http:// or https://.' })
+            return
+          }
+          // Only the fields the admin actually typed. The credentials are
+          // write-only, so an empty input must mean "keep what is stored",
+          // never "overwrite with empty".
+          const payload: Parameters<typeof savePaystack.mutate>[0] = {}
+          if (apiUrl) payload.paystackApiUrl = apiUrl
+          const subscriptionId = paystackForm.subscriptionId.trim()
+          if (subscriptionId) payload.paystackSubscriptionId = subscriptionId
+          if (paystackForm.secret) payload.paystackSecret = paystackForm.secret
+          if (paystackForm.accessToken) payload.paystackAccessToken = paystackForm.accessToken
+          if (Object.keys(payload).length === 0) {
+            setPaystackMessage({ tone: 'error', text: 'Enter at least one value to save.' })
+            return
+          }
+          savePaystack.mutate(payload)
+        }}
+        className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/50 p-5"
+      >
+        <fieldset className="space-y-4">
+          <legend className="text-sm font-medium text-slate-300">PayStack billing — optional</legend>
+          <p className="text-xs text-slate-500">
+            Credentials used to talk to the PayStack API. Stored as entered and never shown again;
+            leave a field blank to keep the value already saved.
+          </p>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm text-slate-300">
+              API URL
+              <input
+                value={paystackForm.apiUrl}
+                onChange={(e) => setPaystackForm((f) => ({ ...f, apiUrl: e.target.value }))}
+                placeholder="https://api.paystack.co"
+                inputMode="url"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              />
+            </label>
+
+            <label className="block text-sm text-slate-300">
+              Subscription ID
+              <input
+                value={paystackForm.subscriptionId}
+                onChange={(e) => setPaystackForm((f) => ({ ...f, subscriptionId: e.target.value }))}
+                placeholder="SUB_xxxxxxxx"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              />
+            </label>
+
+            <label className="block text-sm text-slate-300">
+              Secret key
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={paystackForm.secret}
+                onChange={(e) => setPaystackForm((f) => ({ ...f, secret: e.target.value }))}
+                placeholder="sk_test_…"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              />
+            </label>
+
+            <label className="block text-sm text-slate-300">
+              Access token
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={paystackForm.accessToken}
+                onChange={(e) => setPaystackForm((f) => ({ ...f, accessToken: e.target.value }))}
+                placeholder="Bearer token"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              />
+            </label>
+          </div>
+        </fieldset>
+
+        <p className="text-xs text-slate-500">
+          {current?.paystackApiUrl
+            ? `Saved: ${current.paystackApiUrl}`
+            : 'No PayStack configuration saved yet.'}
+        </p>
+
+        <p className="text-xs text-slate-500">
+          {current?.paystackSecretSet ? 'Secret key stored' : 'No secret key stored'}
+          {' · '}
+          {current?.paystackAccessTokenSet ? 'Access token stored' : 'No access token stored'}
+        </p>
+
+        {paystackMessage && (
+          <p
+            role="status"
+            className={
+              paystackMessage.tone === 'ok'
+                ? 'text-sm text-emerald-400'
+                : 'rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-sm text-red-300'
+            }
+          >
+            {paystackMessage.text}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={savePaystack.isPending}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+        >
+          {savePaystack.isPending ? 'Saving…' : 'Save PayStack'}
         </button>
       </form>
     </section>

@@ -1,90 +1,99 @@
 name: PayStack Integration
 
+# B-67 — the billing feature, gated on its own signal.
+#
+# This is deliberately narrow. It is not a second full pipeline: the type-check,
+# the build and the 230-test suite already run in ci.yml on every push. What
+# this adds is a fast, named job that says whether the billing feature
+# specifically is green, so a regression in it cannot hide behind a green
+# overall run.
+#
+# Everything here uses scripts that exist in package.json. An earlier revision
+# of this file called `npm run test:integration` and `npm run get-paystack-config`,
+# neither of which existed — it would have failed on the first push with
+# "missing script", which is worse than not existing at all.
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
-# A new push supersedes an in-flight run on the same ref.
+# A new push supersedes an in-flight run on the same ref. Without this, two
+# pushes a minute apart both run to completion and the older (stale) result is
+# what the merge gate reads.
 concurrency:
-  group: paystack-integration
+  group: paystack-integration-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: '22'
-  NODE_CACHE: 'npm'
+  # Deterministic, non-secret values. The config module requires 32+ character
+  # secrets, so supplying them keeps the build on the real validation path.
+  # No PayStack credential is set here: nothing in this flow calls PayStack, so
+  # a secret would only be a liability. See the note on logging below.
+  SESSION_SECRET: ci-session-secret-not-for-production-use-0000
+  ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
 
 jobs:
-  paystack-integration:
-    name: PayStack Integration Tests
+  paystack-billing:
+    name: PayStack billing
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: 22
           cache: npm
 
       - name: Install
         run: npm ci
 
-      - name: Configure PayStack API
-        run: |
-          # Set PayStack credentials as environment variables (from GitHub Secrets)
-          export PAYSTACK_API_URL='${{ secrets.PAYSTACK_API_URL }}'
-          export PAYSTACK_SECRET='${{ secrets.PAYSTACK_SECRET }}'
-          export PAYSTACK_ACCESS_TOKEN='${{ secrets.PAYSTACK_ACCESS_TOKEN }}'
-          export PAYSTACK_SUBSCRIPTION_ID='${{ secrets.PAYSTACK_SUBSCRIPTION_ID }}'
-          export PAYSTACK_THEME='${{ secrets.PAYSTACK_THEME }}'
-          export PAYSTACK_LANGUAGE='${{ secrets.PAYSTACK_LANGUAGE }}'
+      - name: Type-check
+        run: npm run type-check
 
-      - name: Validate PayStack Configuration
-        run: |
-          echo "PayStack API URL: $PAYSTACK_API_URL"
-          echo "PayStack Secret: $PAYSTACK_SECRET"
-          echo "PayStack Access Token: $PAYSTACK_ACCESS_TOKEN"
-          echo "PayStack Subscription ID: $PAYSTACK_SUBSCRIPTION_ID"
-          echo "Theme: $PAYSTACK_THEME"
-          echo "Language: $PAYSTACK_LANGUAGE"
+      # The build compiles the settings route, the settings repository and the
+      # settings page together. That is exactly where B-67 broke: the fields
+      # were added to the UserSettings interface and nowhere else, so the row
+      # mapper no longer satisfied the type and every build after it failed.
+      - name: Build
+        run: npm run build
+        env:
+          NODE_ENV: production
+          DB_CLIENT: sqlite
 
-      - name: Run PayStack Integration Tests
-        run: |
-          # Start the application with PayStack configuration
-          # This ensures the settings service picks up the PayStack fields
-          npm run build
-          
-          # Run the integration tests
-          npm run test:integration -- --testPathPattern="paystack" --coverage
+      # The billing assertions live in the settings service suite alongside the
+      # defaults round-trip, the partial-patch rules and per-user isolation, so
+      # they are checked against the same table every other setting writes to.
+      - name: PayStack settings tests
+        run: npx jest lib/services/__tests__/settingsAndAlerts.test.ts --coverage
+        env:
+          SESSION_SECRET: ci-session-secret-not-for-production-use-0000
+          ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
 
-      - name: Validate PayStack Settings Persistence
-        run: |
-          # Verify that the PayStack fields are properly saved in the database
-          # This mimics what an admin would do through the dashboard
-          npm run db:seed -- --paystack-integration
+      # Migration 007 adds the four columns to a table that already exists.
+      # The migrator suite runs up to latest and back down to zero, which is the
+      # only place the alter is actually executed — a fresh database would not
+      # show a missing ALTER on an existing one.
+      - name: Migration tests
+        run: npx jest lib/__tests__/migrator.test.ts
+        env:
+          SESSION_SECRET: ci-session-secret-not-for-production-use-0000
+          ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
 
-      - name: Health Check PayStack Service
-        run: |
-          # Simulate a PayStack API call to verify connectivity
-          # This would typically hit the actual PayStack API or a mock
-          echo "Checking PayStack service health..."
-          # In a real scenario, this would make actual API calls
-          # For now, we verify the configuration is loaded correctly
-          npm run get-paystack-config
-
-      - name: Run PayStack End-to-End Flow
-        run: |
-          # End-to-end test: simulate an admin enabling PayStack integration
-          # and verifying the settings are properly applied
-          npm run test:e2e -- --paystack-integration
-
-      - name: Upload PayStack Artifacts
+      - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: paystack-integration-results
-          path: |
-            doc/paystack-integration/
-            doc/paystack-test-results/
-          retention-days: 30
+          name: paystack-billing-coverage
+          path: coverage/
+          retention-days: 7
+
+# NOTE ON SECRETS
+# ----------------
+# A credential supplied as a job or step `env:` is available to scripts, but
+# echoing it — or passing it on a command line — writes it into the build log,
+# where it is readable by anyone with repo access and archived with the run
+# forever. This workflow sets none, because nothing here calls the PayStack
+# API. When a job that does need one is added, read the value inside the script
+# (curl -H "Authorization: Bearer $PAYSTACK_SECRET") and never print it.

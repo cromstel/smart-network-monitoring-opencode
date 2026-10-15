@@ -130,6 +130,65 @@ describe('settings and alert services', () => {
     })
   })
 
+  // B-67: PayStack credentials live in the same table as every other setting,
+  // so the same partial-patch rules apply. The empty-string default matters
+  // most: a row created by an older migration (or by a seed script that
+  // inserts only id and user_id) reads back as '' rather than null, which is
+  // what UserSettings declares.
+  describe('PayStack billing (B-67)', () => {
+    it('defaults every credential to an empty string', async () => {
+      const settings = await getUserSettings(userId)
+
+      expect(settings.paystackApiUrl).toBe('')
+      expect(settings.paystackSecret).toBe('')
+      expect(settings.paystackAccessToken).toBe('')
+      expect(settings.paystackSubscriptionId).toBe('')
+    })
+
+    it('persists all four fields and reads them back', async () => {
+      await saveUserSettings(userId, {
+        paystackApiUrl: 'https://api.paystack.co',
+        paystackSecret: 'sk_test_abc',
+        paystackAccessToken: 'tok_abc',
+        paystackSubscriptionId: 'SUB_123',
+      })
+
+      const row = await settingsRepo.findUserSettings(userId)
+      expect(row?.paystackApiUrl).toBe('https://api.paystack.co')
+      expect(row?.paystackSecret).toBe('sk_test_abc')
+      expect(row?.paystackAccessToken).toBe('tok_abc')
+      expect(row?.paystackSubscriptionId).toBe('SUB_123')
+    })
+
+    it('updates one field without clearing the others', async () => {
+      await saveUserSettings(userId, {
+        paystackApiUrl: 'https://api.paystack.co',
+        paystackSecret: 'sk_test_abc',
+        paystackAccessToken: 'tok_abc',
+        paystackSubscriptionId: 'SUB_123',
+      })
+
+      const updated = await saveUserSettings(userId, { paystackSubscriptionId: 'SUB_999' })
+
+      // Untouched fields keep their stored values — this is the write-only
+      // credential contract the settings form depends on.
+      expect(updated.paystackSecret).toBe('sk_test_abc')
+      expect(updated.paystackAccessToken).toBe('tok_abc')
+      expect(updated.paystackSubscriptionId).toBe('SUB_999')
+    })
+
+    it('writes the credentials on a row that does not exist yet', async () => {
+      const saved = await saveUserSettings(userId, {
+        paystackApiUrl: 'https://api.paystack.co',
+        paystackSecret: 'sk_test_new',
+      })
+
+      expect(saved.paystackApiUrl).toBe('https://api.paystack.co')
+      expect(saved.paystackSecret).toBe('sk_test_new')
+      expect(saved.paystackAccessToken).toBe('')
+    })
+  })
+
   describe('alert rules — owner scoping', () => {
     it('creates and lists rules for the owner only', async () => {
       const created = await createAlert({

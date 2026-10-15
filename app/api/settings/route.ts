@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/api/auth'
 import { apiError } from '@/lib/api/errors'
 import { getUserSettings, saveUserSettings } from '@/lib/services/settingsService'
+import type { UserSettings } from '@/lib/types/settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,14 +16,36 @@ const patchSchema = z.object({
   notifyHighBandwidth: z.boolean().optional(),
   bandwidthThreshold: z.number().nonnegative().max(100_000).optional(),
   theme: z.enum(['dark', 'light']).optional(),
+  paystackApiUrl: z.string().url('Expected a URL, e.g. https://api.paystack.co').optional(),
+  paystackSecret: z.string().max(255).optional(),
+  paystackAccessToken: z.string().max(255).optional(),
+  paystackSubscriptionId: z.string().max(255).optional(),
 })
+
+/**
+ * The stored credentials never leave the server: GET returns the non-secret
+ * fields plus a boolean per credential so the form can say whether one is
+ * configured, without putting the value in the response body.
+ *
+ * Allow-listed field by field, mirroring `publicView` in the router-config
+ * route — a future credential column must be dropped here deliberately, not
+ * leaked because someone added it to a spread.
+ */
+function publicView(settings: UserSettings): Omit<UserSettings, 'paystackSecret' | 'paystackAccessToken'> {
+  const { paystackSecret, paystackAccessToken, ...rest } = settings
+  return {
+    ...rest,
+    paystackSecretSet: paystackSecret.length > 0,
+    paystackAccessTokenSet: paystackAccessToken.length > 0,
+  } as Omit<UserSettings, 'paystackSecret' | 'paystackAccessToken'>
+}
 
 export async function GET() {
   const auth = await requireAuth(['VIEWER', 'MEMBER', 'ADMIN'])
   if (auth instanceof NextResponse) return auth
 
   const settings = await getUserSettings(auth.user.id)
-  return NextResponse.json({ data: settings })
+  return NextResponse.json({ data: publicView(settings) })
 }
 
 export async function PATCH(request: Request) {
@@ -42,5 +65,5 @@ export async function PATCH(request: Request) {
   }
 
   const settings = await saveUserSettings(auth.user.id, parsed.data)
-  return NextResponse.json({ data: settings })
+  return NextResponse.json({ data: publicView(settings) })
 }
