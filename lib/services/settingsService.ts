@@ -1,6 +1,8 @@
 import * as settingsRepo from '@/lib/db/repositories/settingsRepository'
 import { logger } from '@/lib/utils/logger'
-export type UserSettingsPatch = Partial(
+import type { UserSettings } from '@/lib/types/settings'
+
+export type UserSettingsPatch = Partial<
   Pick<
     UserSettings,
     | 'scanIntervalSeconds'
