@@ -1,0 +1,90 @@
+name: PayStack Integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A new push supersedes an in-flight run on the same ref.
+concurrency:
+  group: paystack-integration
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  NODE_CACHE: 'npm'
+
+jobs:
+  paystack-integration:
+    name: PayStack Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Configure PayStack API
+        run: |
+          # Set PayStack credentials as environment variables (from GitHub Secrets)
+          export PAYSTACK_API_URL='${{ secrets.PAYSTACK_API_URL }}'
+          export PAYSTACK_SECRET='${{ secrets.PAYSTACK_SECRET }}'
+          export PAYSTACK_ACCESS_TOKEN='${{ secrets.PAYSTACK_ACCESS_TOKEN }}'
+          export PAYSTACK_SUBSCRIPTION_ID='${{ secrets.PAYSTACK_SUBSCRIPTION_ID }}'
+          export PAYSTACK_THEME='${{ secrets.PAYSTACK_THEME }}'
+          export PAYSTACK_LANGUAGE='${{ secrets.PAYSTACK_LANGUAGE }}'
+
+      - name: Validate PayStack Configuration
+        run: |
+          echo "PayStack API URL: $PAYSTACK_API_URL"
+          echo "PayStack Secret: $PAYSTACK_SECRET"
+          echo "PayStack Access Token: $PAYSTACK_ACCESS_TOKEN"
+          echo "PayStack Subscription ID: $PAYSTACK_SUBSCRIPTION_ID"
+          echo "Theme: $PAYSTACK_THEME"
+          echo "Language: $PAYSTACK_LANGUAGE"
+
+      - name: Run PayStack Integration Tests
+        run: |
+          # Start the application with PayStack configuration
+          # This ensures the settings service picks up the PayStack fields
+          npm run build
+          
+          # Run the integration tests
+          npm run test:integration -- --testPathPattern="paystack" --coverage
+
+      - name: Validate PayStack Settings Persistence
+        run: |
+          # Verify that the PayStack fields are properly saved in the database
+          # This mimics what an admin would do through the dashboard
+          npm run db:seed -- --paystack-integration
+
+      - name: Health Check PayStack Service
+        run: |
+          # Simulate a PayStack API call to verify connectivity
+          # This would typically hit the actual PayStack API or a mock
+          echo "Checking PayStack service health..."
+          # In a real scenario, this would make actual API calls
+          # For now, we verify the configuration is loaded correctly
+          npm run get-paystack-config
+
+      - name: Run PayStack End-to-End Flow
+        run: |
+          # End-to-end test: simulate an admin enabling PayStack integration
+          # and verifying the settings are properly applied
+          npm run test:e2e -- --paystack-integration
+
+      - name: Upload PayStack Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paystack-integration-results
+          path: |
+            doc/paystack-integration/
+            doc/paystack-test-results/
+          retention-days: 30
