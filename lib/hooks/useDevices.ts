@@ -78,3 +78,27 @@ export function useDeviceBandwidth(deviceId: string | null, hours = 24) {
     staleTime: 5_000,
   })
 }
+
+export interface ConnectionLogDTO {
+  id: string
+  eventType: 'connected' | 'disconnected'
+  timestamp: string
+  ipAddress: string | null
+  connectionDuration: number | null
+}
+
+export function useDeviceConnectionLogs(deviceId: string | null, limit = 20) {
+  return useQuery({
+    queryKey: ['devices', deviceId, 'connection-logs', limit],
+    queryFn: async () => {
+      if (!deviceId) return []
+      const response = await fetch(`/api/devices/${deviceId}/connection-logs?limit=${limit}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch connection history')
+      }
+      return response.json() as Promise<ConnectionLogDTO[]>
+    },
+    enabled: !!deviceId,
+    staleTime: 5_000,
+  })
+}

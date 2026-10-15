@@ -65,21 +65,35 @@ async function seedBandwidth(now: number): Promise<void> {
   // Two samples per hour per device over 7 days: 12 * 14 * 24 = 4 032 rows.
   const rows = []
   const SAMPLE_MS = 30 * 60 * 1000
+  // Cumulative byte counters per device. A counter only grows with time.
+  // The previous formula indexed totals by absolute sample position
+  // (`base * 65536`), which made totals *fall* as time advanced and left the
+  // newest row of the first device at exactly 0 — the device API reads the
+  // latest row's counters, so every seeded install showed
+  // "Total Traffic 0.00 B" on the device page (found by an admin-session
+  // audit, 2026-10-15). One 30-minute sample at 1 Mbps = 125 000 B/s * 1 800 s.
+  const BYTES_PER_SAMPLE_PER_MBPS = 125_000 * 1_800
+  const totals = DEVICES.map(() => ({ upload: 0, download: 0 }))
+  // Slot 0 is the *latest* moment of its day (t has no slot offset), so the
+  // slots must run 47 -> 0 for the build order — and therefore the running
+  // counters — to follow time forward. 0 -> 47 accumulates backwards.
   for (let day = 7 - 1; day >= 0; day -= 1) {
-    for (let slot = 0; slot < 48; slot += 1) {
+    for (let slot = 47; slot >= 0; slot -= 1) {
       const t = now - day * DAY_MS - Math.floor(slot / 2) * 60 * 60 * 1000 - (slot % 2) * SAMPLE_MS
       if (t > now) continue
       for (let i = 0; i < DEVICES.length; i += 1) {
-        const base = (day * 48 + slot) * DEVICES.length + i
-        const stepping = i * 4096 * 1024 + base * 65536
+        const uploadSpeed = Number((0.2 + ((i * 3 + slot) % 9) * 0.4).toFixed(2))
+        const downloadSpeed = Number((1.2 + ((i * 5 + day * 7) % 23) * 3.1).toFixed(2))
+        totals[i].upload += Math.round(uploadSpeed * BYTES_PER_SAMPLE_PER_MBPS)
+        totals[i].download += Math.round(downloadSpeed * BYTES_PER_SAMPLE_PER_MBPS)
         rows.push({
           id: randomUUID(),
           device_id: DEVICES[i].id,
           timestamp: iso(t),
-          upload_speed: Number((0.2 + ((i * 3 + slot) % 9) * 0.4).toFixed(2)),
-          download_speed: Number((1.2 + ((i * 5 + day * 7) % 23) * 3.1).toFixed(2)),
-          upload_total: String(stepping),
-          download_total: String(stepping * 9),
+          upload_speed: uploadSpeed,
+          download_speed: downloadSpeed,
+          upload_total: String(totals[i].upload),
+          download_total: String(totals[i].download),
           created_at: iso(t),
         })
       }

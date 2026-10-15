@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { useDeviceById, useDeviceBandwidth } from '@/lib/hooks/useDevices'
+import { useDeviceById, useDeviceBandwidth, useDeviceConnectionLogs } from '@/lib/hooks/useDevices'
 import { useDeviceForm } from '@/lib/hooks/useDeviceForm'
 import {
   LineChart,
@@ -51,6 +51,13 @@ function formatDate(date: Date | string): string {
   return new Date(date).toLocaleString()
 }
 
+function formatDuration(seconds: number): string {
+  if (seconds >= 86_400) return `${Math.round(seconds / 86_400)}d`
+  if (seconds >= 3_600) return `${Math.round(seconds / 3_600)}h`
+  if (seconds >= 60) return `${Math.round(seconds / 60)}m`
+  return `${seconds}s`
+}
+
 export default function DeviceDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -59,6 +66,7 @@ export default function DeviceDetailPage() {
   const { data: device, isLoading: deviceLoading, isError: deviceIsError, error: deviceError } = useDeviceById(deviceId)
   const [range, setRange] = useState(24)
   const { data: bandwidth, isLoading: bandwidthLoading } = useDeviceBandwidth(deviceId, range)
+  const { data: connectionLogs = [], isLoading: logsLoading } = useDeviceConnectionLogs(deviceId)
 
   const { isEditing, formData, setFormData, handleChange, handleSubmit, openEditDialog, closeEditDialog, handleOpenChange } = useDeviceForm(device)
 
@@ -315,7 +323,30 @@ export default function DeviceDetailPage() {
         <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-6">
           <h2 className="text-lg font-medium mb-4">Connection History</h2>
           <div className="space-y-3 max-h-64 overflow-y-auto">
-            <p className="text-slate-400 text-sm">Connection history will be displayed here</p>
+            {logsLoading ? (
+              <p className="text-slate-400 text-sm">Loading connection history...</p>
+            ) : connectionLogs.length === 0 ? (
+              <p className="text-slate-400 text-sm">No connection events recorded yet.</p>
+            ) : (
+              connectionLogs.map((log) => (
+                <div key={log.id} className="flex items-center justify-between gap-4 text-sm">
+                  <span
+                    className={cn(
+                      'font-medium',
+                      log.eventType === 'connected' ? 'text-green-400' : 'text-amber-400'
+                    )}
+                  >
+                    {log.eventType === 'connected' ? 'Connected' : 'Disconnected'}
+                  </span>
+                  {log.connectionDuration !== null && (
+                    <span className="text-slate-500 font-mono text-xs">
+                      lasted {formatDuration(log.connectionDuration)}
+                    </span>
+                  )}
+                  <span className="text-slate-400">{formatDate(log.timestamp)}</span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
