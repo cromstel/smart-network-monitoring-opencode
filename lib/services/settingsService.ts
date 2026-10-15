@@ -1,8 +1,6 @@
 import * as settingsRepo from '@/lib/db/repositories/settingsRepository'
 import { logger } from '@/lib/utils/logger'
-import type { UserSettings } from '@/lib/types'
-
-export type UserSettingsPatch = Partial<
+export type UserSettingsPatch = Partial(
   Pick<
     UserSettings,
     | 'scanIntervalSeconds'
@@ -14,6 +12,10 @@ export type UserSettingsPatch = Partial<
     | 'notifyHighBandwidth'
     | 'bandwidthThreshold'
     | 'theme'
+    | 'paystackApiUrl'
+    | 'paystackSecret'
+    | 'paystackAccessToken'
+    | 'paystackSubscriptionId'
   >
 >
 

@@ -10,6 +10,10 @@ export interface UserSettings {
   notifyHighBandwidth: boolean
   bandwidthThreshold: number
   theme: 'dark' | 'light'
+  paystackApiUrl: string
+  paystackSecret: string
+  paystackAccessToken: string
+  paystackSubscriptionId: string
   createdAt: Date
   updatedAt: Date
 }
