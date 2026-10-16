@@ -3,7 +3,14 @@ import type { NextRequest } from 'next/server'
 import { validateSession } from '@/lib/services/authService'
 import { logger } from '@/lib/utils/logger'
 
-export const runtime = 'nodejs'
+// Next.js 16 renamed the `middleware` convention to `proxy` and fixed its
+// runtime to Node.js. This file was middleware.ts through Next.js 15, where
+// `export const runtime = 'nodejs'` was required to opt in; the export is gone
+// because the runtime is no longer configurable.
+//
+// The Node.js runtime is load-bearing here, not incidental: validateSession
+// opens the application database through the same repository layer the routes
+// use. An edge runtime could not reach it.
 
 // Authentication pages live under /auth/*. The API routes keep their own
 // /api/* namespace and are listed separately below.
@@ -20,7 +27,7 @@ function isAllowed(path: string): boolean {
   return ALLOWED_PATHS.some((p) => path === p || path.startsWith(p + '/'))
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
 
   if (isAllowed(path)) {

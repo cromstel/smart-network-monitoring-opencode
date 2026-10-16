@@ -3,7 +3,7 @@ import { sql } from 'kysely'
 import { db } from '@/lib/db/client'
 import { getConfig } from '@/lib/config'
 import { apiError } from '@/lib/api/errors'
-import { getSchedulerStatus } from '@/instrumentation'
+import { getSchedulerStatus } from '@/instrumentation.node'
 import pkg from '../../../package.json'
 
 export const dynamic = 'force-dynamic'

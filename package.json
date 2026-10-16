@@ -44,12 +44,12 @@
     "kysely": "^0.28.17",
     "lucide-react": "^1.48.0",
     "mysql2": "^3.24.4",
-    "next": "^15.1.0",
+    "next": "^16.4.2",
     "node-cron": "^4.2.1",
     "oui-data": "^1.2.0",
     "pino": "^9.5.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "recharts": "^3.10.1",
     "tailwind-merge": "^3.7.0",
     "zod": "^3.23.8"
@@ -64,8 +64,8 @@
     "@types/jest": "^29.5.0",
     "@types/node": "^24.0.0",
     "@types/node-cron": "^3.0.11",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.16",
     "cross-env": "^10.1.0",
     "jest": "^29.7.0",
@@ -83,9 +83,21 @@
     "an arbitrary-file-read issue). The root already resolves 8.5.28, so the",
     "nested copy is pure duplication. Overriding it clears both advisories",
     "without waiting for a Next major, and the build plus the full suite are",
-    "verified against the result."
+    "verified against the result.",
+    "postcss's own source-map-js resolves to 1.2.1, which npm audit flags as high",
+    "severity (event-loop DoS via indexed source-map section offsets); 1.2.2 is",
+    "the patch and postcss's range already permits it, so the pin only forces the",
+    "re-resolve.",
+    "solid-js arrives under @tanstack/react-query-devtools (the Devtools UI is",
+    "built with Solid). solid-js 1.9.15 pins seroval ~1.5.4, and every seroval",
+    "<=1.6.2 carries two critical advisories, so no seroval within that range can",
+    "be patched. solid-js 1.9.17 moves to seroval ~1.6.8; overriding solid-js is",
+    "what actually clears them. Kept as an override rather than a direct",
+    "dependency because nothing here imports solid-js by name."
   ],
   "overrides": {
-    "postcss": "^8.5.28"
+    "postcss": "^8.5.28",
+    "source-map-js": "^1.2.2",
+    "solid-js": "^1.9.17"
   }
 }
