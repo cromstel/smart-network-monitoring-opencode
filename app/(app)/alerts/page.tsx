@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, Check, Loader2, Plus, Trash2 } from 'lucide-react'
+import { useCurrentUser } from '@/lib/hooks/useCurrentUser'
 
 interface AlertRule {
   id: string
@@ -48,6 +49,12 @@ export default function AlertsPage() {
   const [deviceId, setDeviceId] = useState('')
   const [threshold, setThreshold] = useState('50')
   const [error, setError] = useState<string | null>(null)
+
+  // Hides the rule form and delete affordances from VIEWERs. Until the role
+  // arrives (or if `/api/auth/me` fails) the controls stay visible, because
+  // the handlers re-check the session themselves — this only avoids offering a
+  // control that would be refused (PRD F-62: "and", not "or").
+  const { permissions } = useCurrentUser()
 
   const rules = useQuery({
     queryKey: ['alerts'],
@@ -106,11 +113,20 @@ export default function AlertsPage() {
 
   const acknowledge = useMutation({
     mutationFn: async (id: string) => {
-      await fetch('/api/notifications', {
+      const res = await fetch(`/api/notifications/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ isRead: true }),
       })
+      if (!res.ok && res.status !== 404) throw new Error('Failed to mark notification read')
+    },
+    onSuccess: refresh,
+  })
+
+  const markAllRead = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/notifications/read-all', { method: 'POST' })
+      if (!res.ok) throw new Error('Failed to mark all read')
     },
     onSuccess: refresh,
   })
@@ -130,6 +146,7 @@ export default function AlertsPage() {
 
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="space-y-6 lg:col-span-2">
+          {permissions.canManage && (
           <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-5">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
               New rule
@@ -208,6 +225,7 @@ export default function AlertsPage() {
               </button>
             </div>
           </div>
+          )}
 
           <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-5">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
@@ -234,6 +252,7 @@ export default function AlertsPage() {
                         {rule.triggerCount > 0 && ` · fired ${rule.triggerCount}×`}
                       </p>
                     </div>
+                    {permissions.canManage && (
                     <button
                       type="button"
                       aria-label="Delete rule"
@@ -242,6 +261,7 @@ export default function AlertsPage() {
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -253,10 +273,22 @@ export default function AlertsPage() {
 
         <div className="lg:col-span-3">
           <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-5">
-            <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
-              <Bell className="h-4 w-4" />
-              Activity
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
+                <Bell className="h-4 w-4" />
+                Activity
+              </h2>
+              {unread > 0 && (
+                <button
+                  type="button"
+                  onClick={() => markAllRead.mutate()}
+                  disabled={markAllRead.isPending}
+                  className="text-xs font-medium text-blue-400 hover:text-blue-300 disabled:opacity-50"
+                >
+                  Mark all read
+                </button>
+              )}
+            </div>
             {activity.isLoading ? (
               <p className="mt-4 text-sm text-slate-500">Loading…</p>
             ) : notifications.length === 0 ? (

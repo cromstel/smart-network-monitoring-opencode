@@ -183,7 +183,7 @@ export async function deleteAlert(id: string, userId: string): Promise<boolean> 
 
 export async function getUserNotifications(
   userId: string,
-  options?: { unreadOnly?: boolean; limit?: number; type?: string }
+  options?: { unreadOnly?: boolean; readOnly?: boolean; limit?: number; type?: string }
 ): Promise<Notification[]> {
   return alertRepo.listNotifications(userId, options)
 }
@@ -194,4 +194,8 @@ export async function countUnread(userId: string): Promise<number> {
 
 export async function markNotificationRead(id: string, userId: string): Promise<boolean> {
   return alertRepo.markNotificationRead(id, userId)
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<number> {
+  return alertRepo.markAllNotificationsRead(userId)
 }

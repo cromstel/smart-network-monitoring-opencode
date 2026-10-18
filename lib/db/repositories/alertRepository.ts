@@ -265,7 +265,7 @@ export async function createNotification(input: {
 
 export async function listNotifications(
   userId: string,
-  options?: { unreadOnly?: boolean; limit?: number; type?: string }
+  options?: { unreadOnly?: boolean; readOnly?: boolean; limit?: number; type?: string }
 ): Promise<Notification[]> {
   let query = db
     .selectFrom('notifications')
@@ -273,6 +273,7 @@ export async function listNotifications(
     .orderBy('created_at', 'desc')
 
   if (options?.unreadOnly) query = query.where('is_read', '=', 0)
+  if (options?.readOnly) query = query.where('is_read', '=', 1)
   if (options?.type) query = query.where('type', '=', options.type)
   if (options?.limit) query = query.limit(Math.min(options.limit, 500))
 
@@ -300,4 +301,15 @@ export async function markNotificationRead(id: string, userId: string): Promise<
     .executeTakeFirst()
 
   return Number((result as { numUpdatedRows?: bigint | number })?.numUpdatedRows ?? 0) > 0
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<number> {
+  const result = await db
+    .updateTable('notifications')
+    .set({ is_read: 1, read_at: new Date().toISOString() })
+    .where('user_id', '=', userId)
+    .where('is_read', '=', 0)
+    .executeTakeFirst()
+
+  return Number((result as { numUpdatedRows?: bigint | number })?.numUpdatedRows ?? 0)
 }

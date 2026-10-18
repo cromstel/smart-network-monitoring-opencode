@@ -42,6 +42,12 @@ export async function POST(request: Request) {
     return apiError(400, 'INVALID_BODY', 'Only bandwidth_exceeded accepts a threshold')
   }
 
+  // …and without one the rule could never fire, so it is required rather than
+  // stored as null. `API.md`: "threshold is required for bandwidth_exceeded".
+  if (parsed.data.alertType === 'bandwidth_exceeded' && parsed.data.threshold == null) {
+    return apiError(400, 'INVALID_BODY', 'bandwidth_exceeded requires a threshold')
+  }
+
   const alert = await createAlert({
     userId: auth.user.id,
     deviceId: parsed.data.deviceId ?? null,

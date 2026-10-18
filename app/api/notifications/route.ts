@@ -1,18 +1,36 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/api/auth'
-import { apiError } from '@/lib/api/errors'
-import { getUserNotifications, markNotificationRead } from '@/lib/services/alertService'
+import { countUnread, getUserNotifications } from '@/lib/services/alertService'
 import { listDevices } from '@/lib/services/deviceService'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(request: Request) {
   const auth = await requireAuth(['VIEWER', 'MEMBER', 'ADMIN'])
   if (auth instanceof NextResponse) return auth
 
-  const [notifications, devices] = await Promise.all([
-    getUserNotifications(auth.user.id, { limit: 100 }),
+  const url = new URL(request.url)
+  const isReadParam = url.searchParams.get('isRead')
+  const type = url.searchParams.get('type') ?? undefined
+
+  const parsedPageSize = Number(url.searchParams.get('pageSize') ?? '50')
+  const pageSize = Number.isFinite(parsedPageSize)
+    ? Math.min(Math.max(Math.trunc(parsedPageSize), 1), 100)
+    : 50
+
+  // `isRead=false` → unread only; `isRead=true` → read only; absent → all.
+  const unreadOnly = isReadParam === 'false' ? true : undefined
+  const readOnly = isReadParam === 'true' ? true : undefined
+
+  const [notifications, devices, unreadCount] = await Promise.all([
+    getUserNotifications(auth.user.id, {
+      unreadOnly,
+      readOnly,
+      limit: pageSize,
+      type: type || undefined,
+    }),
     listDevices({ page: 1, pageSize: 100 }),
+    countUnread(auth.user.id),
   ])
 
   return NextResponse.json({
@@ -23,25 +41,9 @@ export async function GET() {
         name: d.device.deviceName ?? d.device.macAddress,
         macAddress: d.device.macAddress,
       })),
+      unreadCount,
     },
   })
 }
 
-export async function PATCH(request: Request) {
-  const auth = await requireAuth(['VIEWER', 'MEMBER', 'ADMIN'])
-  if (auth instanceof NextResponse) return auth
 
-  let body: { id?: string }
-  try {
-    body = await request.json()
-  } catch {
-    return apiError(400, 'INVALID_BODY', 'Invalid JSON body')
-  }
-
-  if (!body.id) {
-    return apiError(400, 'INVALID_BODY', 'id is required')
-  }
-
-  await markNotificationRead(body.id, auth.user.id)
-  return NextResponse.json({ data: { success: true } })
-}
