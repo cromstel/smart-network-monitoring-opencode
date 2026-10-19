@@ -34,3 +34,9 @@ npm-debug.log*
 # and CI publishes them as artifacts, but the markdown itself is not versioned.
 # Anchored with a leading slash so a nested doc/ elsewhere is unaffected.
 /doc/
+
+# review reports — local-only, deliberately untracked, same rationale as /doc/.
+# These name file:line findings against a moving tree and go stale the moment
+# the code they describe is edited.
+# Anchored with a leading slash so a nested thoughts/ elsewhere is unaffected.
+/thoughts/
