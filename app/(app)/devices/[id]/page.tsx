@@ -23,6 +23,7 @@ import {
 } from '@radix-ui/react-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@radix-ui/react-select'
 import { Loader2, Save, X, Wifi, WifiOff, AlertTriangle, Edit2 } from 'lucide-react'
+import { useCurrentUser } from '@/lib/hooks/useCurrentUser'
 import { cn } from '@/lib/utils/cn'
 import type { EnrichedDevice, DeviceType, DeviceStatus } from '@/lib/types'
 
@@ -69,6 +70,9 @@ export default function DeviceDetailPage() {
   const { data: connectionLogs = [], isLoading: logsLoading } = useDeviceConnectionLogs(deviceId)
 
   const { isEditing, formData, setFormData, handleChange, handleSubmit, openEditDialog, closeEditDialog, handleOpenChange } = useDeviceForm(device)
+  // Role only hides the affordance; the PATCH handler still re-checks the
+  // session (PRD F-62). VIEWERs cannot rename devices.
+  const { permissions } = useCurrentUser()
 
   if (deviceLoading) {
     return (
@@ -114,12 +118,14 @@ export default function DeviceDetailPage() {
           </p>
         </div>
         <Dialog open={isEditing} onOpenChange={handleOpenChange}>
-          <DialogTrigger asChild>
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 flex items-center gap-2">
-              <Edit2 className="h-4 w-4" />
-              Edit
-            </button>
-          </DialogTrigger>
+          {permissions.canManage && (
+            <DialogTrigger asChild>
+              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 flex items-center gap-2">
+                <Edit2 className="h-4 w-4" />
+                Edit
+              </button>
+            </DialogTrigger>
+          )}
           <DialogContent className="max-w-md">
             <div className="space-y-4">
               <DialogTitle>Edit Device</DialogTitle>

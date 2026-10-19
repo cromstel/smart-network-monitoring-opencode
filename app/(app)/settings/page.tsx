@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
+import { useCurrentUser } from '@/lib/hooks/useCurrentUser'
 
 /** What GET /api/settings returns — never the credential values, only whether one is set. */
 interface Settings {
@@ -33,6 +34,8 @@ export default function SettingsPage() {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<Partial<Settings>>({})
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+
+  const { permissions } = useCurrentUser()
 
   const settings = useQuery({
     queryKey: ['settings'],
@@ -291,13 +294,15 @@ export default function SettingsPage() {
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={save.isPending || Object.keys(form).length === 0}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-        >
-          {save.isPending ? 'Saving…' : 'Save changes'}
-        </button>
+        {permissions.isAdmin && (
+          <button
+            type="submit"
+            disabled={save.isPending || Object.keys(form).length === 0}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+          >
+            {save.isPending ? 'Saving…' : 'Save changes'}
+          </button>
+        )}
       </form>
 
       <form
@@ -419,13 +424,15 @@ export default function SettingsPage() {
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={saveRouter.isPending}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-        >
-          {saveRouter.isPending ? 'Saving…' : 'Save router'}
-        </button>
+        {permissions.isAdmin && (
+          <button
+            type="submit"
+            disabled={saveRouter.isPending}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+          >
+            {saveRouter.isPending ? 'Saving…' : 'Save router'}
+          </button>
+        )}
       </form>
 
       {/* B-67: PayStack billing. Its own form because the endpoint carries an
@@ -537,13 +544,15 @@ export default function SettingsPage() {
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={savePaystack.isPending}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-        >
-          {savePaystack.isPending ? 'Saving…' : 'Save PayStack'}
-        </button>
+        {permissions.isAdmin && (
+          <button
+            type="submit"
+            disabled={savePaystack.isPending}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+          >
+            {savePaystack.isPending ? 'Saving…' : 'Save PayStack'}
+          </button>
+        )}
       </form>
     </section>
   )
