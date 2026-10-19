@@ -93,11 +93,27 @@
     "<=1.6.2 carries two critical advisories, so no seroval within that range can",
     "be patched. solid-js 1.9.17 moves to seroval ~1.6.8; overriding solid-js is",
     "what actually clears them. Kept as an override rather than a direct",
-    "dependency because nothing here imports solid-js by name."
+    "dependency because nothing here imports solid-js by name.",
+    "handlebars is pulled in transitively by ts-jest 29.x (its template helpers).",
+    "4.7.9 carries three critical/high advisories (CVE-2026-106444/45/46);",
+    "4.7.10 is the first patched release and is a patch-level bump, so overriding",
+    "is safe. Nothing in this repo renders untrusted Handlebars templates.",
+    "postcss-selector-parser 6.1.4 (under tailwindcss 3.4) is O(n^2) on flat",
+    "selectors (CVE-2026-104844). 7.1.6 is the patch; tailwindcss's range does",
+    "not reach it, so the override forces the re-resolve. Build-time CSS only,",
+    "no untrusted selector input.",
+    "js-yaml 3.15.2 (under @istanbuljs/load-nyc-config, used only by jest",
+    "coverage) depends on argparse 1.0.10, which depends on sprintf-js 1.0.3 with",
+    "no patched release (CVE-2026-97058). js-yaml 4.x dropped the argparse",
+    "dependency entirely; its single caller here uses js-yaml.load() only, which",
+    "4.x still provides (safe by default). Overriding clears the last open alert."
   ],
   "overrides": {
     "postcss": "^8.5.28",
     "source-map-js": "^1.2.2",
-    "solid-js": "^1.9.17"
+    "solid-js": "^1.9.17",
+    "handlebars": "^4.7.10",
+    "postcss-selector-parser": "^7.1.6",
+    "js-yaml": "^4.1.0"
   }
 }
