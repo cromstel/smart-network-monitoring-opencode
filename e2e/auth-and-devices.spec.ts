@@ -90,29 +90,33 @@ test.describe('authentication and device list', () => {
     await signIn(page, '/devices')
     await expect(page.getByRole('heading', { level: 1, name: 'Devices' })).toBeVisible()
 
-    // `/devices` is a statically prerendered page, so the search input is in the
-    // HTML before React hydrates. Waiting on the heading proves nothing about
-    // interactivity — the heading ships in the static shell. Typing into the
-    // input before hydration sets the DOM value but never fires the component's
-    // onChange, so `search` stays '' and the list never filters at all. That is
-    // what made this test fail intermittently: it had found the input, typed
-    // into it, and then asserted against a list that had never been asked to
-    // filter. Waiting for a row to appear proves the client-side query resolved,
-    // which cannot happen until the component is mounted and interactive.
+    // `/devices` is a statically prerendered page, so the search input is in
+    // the HTML before React hydrates and the heading proves nothing about
+    // interactivity — it ships in the static shell. A row cannot exist until
+    // the client-side query has resolved, which cannot happen until the
+    // component is mounted, so waiting for one is what proves it is interactive.
     await expect(page.getByText('NAS Server')).toBeVisible()
 
-    await page.getByPlaceholder('Search devices...').fill('NAS')
+    // Search a term that matches exactly one device. Deliberately not "NAS":
+    // the filter matches name, hostname, IP *and* MAC (`searchFilter` in
+    // deviceRepository), and the running simulated scanner rewrites hostnames
+    // during the run — it turns the seeded "ana-s-iphone" into "anas-iphone",
+    // which *contains* "nas". Whether "NAS" filtered to one row or three
+    // therefore depended on how long the server had been up, which is why this
+    // spec failed close to half the time. "printer" is stable: the name
+    // "Office Printer" always contains it, and no hostname, IP or MAC can.
+    const searchInput = page.getByPlaceholder('Search devices...')
+    await searchInput.fill('printer')
 
     // Order the waits so the one that can actually block comes first.
-    // "NAS Server" is already in the unfiltered list, so asserting it is
+    // "Office Printer" is already in the unfiltered list, so asserting it is
     // visible returns immediately and proves nothing about whether the filter
-    // has been applied; the second assertion then raced the response and
-    // failed roughly one full run in four. "Anas iPhone" is present before
-    // the search and absent after it, so waiting for it to disappear is the
-    // assertion that genuinely blocks until the filtered results have rendered.
-    await expect(page.getByText("Ana's iPhone")).toBeHidden({ timeout: 15_000 })
-    await expect(page.getByText("NAS Server")).toBeVisible()
-    await expect(page.getByText("Living Room TV")).toBeHidden({ timeout: 15_000 })
+    // was applied. "NAS Server" is present before the search and absent after
+    // it, so waiting for it to disappear is the assertion that genuinely
+    // blocks until the filtered results have rendered.
+    await expect(page.getByText('NAS Server')).toBeHidden({ timeout: 15_000 })
+    await expect(page.getByText('Office Printer')).toBeVisible()
+    await expect(page.getByText('Living Room TV')).toBeHidden({ timeout: 15_000 })
   })
 
   test('signs out and revokes access', async ({ page }) => {

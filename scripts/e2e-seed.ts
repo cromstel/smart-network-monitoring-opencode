@@ -141,6 +141,61 @@ async function run(): Promise<void> {
     })
     .execute()
 
+  // Activity is produced by the alert engine, which never runs during an
+  // E2E pass, so the panel would otherwise always render its empty state and
+  // the "Mark all read" control would never appear — it is gated on unread > 0.
+  // Two unread and one already read, so a spec can tell "was marked read" from
+  // "was removed from the list". Deliberately not tied to an alert rule:
+  // `alert_id` is nullable and seeding a rule here would change the counts the
+  // rule specs assert.
+  await db
+    .insertInto('notifications')
+    .values([
+      {
+        id: randomUUID(),
+        user_id: adminId,
+        device_id: deviceIds[0] ?? null,
+        alert_id: null,
+        title: 'New device joined the network',
+        message: "Ana's iPhone was seen for the first time.",
+        type: 'unknown_device',
+        priority: 'medium',
+        is_read: 0,
+        read_at: null,
+        data: null,
+        created_at: iso(30 * 60_000),
+      },
+      {
+        id: randomUUID(),
+        user_id: adminId,
+        device_id: deviceIds[2] ?? null,
+        alert_id: null,
+        title: 'NAS Server is offline',
+        message: 'NAS Server has not responded to a probe in 5 minutes.',
+        type: 'device_offline',
+        priority: 'high',
+        is_read: 0,
+        read_at: null,
+        data: null,
+        created_at: iso(2 * HOUR),
+      },
+      {
+        id: randomUUID(),
+        user_id: adminId,
+        device_id: deviceIds[3] ?? null,
+        alert_id: null,
+        title: 'Office Printer connected',
+        message: 'Office Printer joined the network.',
+        type: 'unknown_device',
+        priority: 'low',
+        is_read: 1,
+        read_at: iso(60 * 60_000),
+        data: null,
+        created_at: iso(5 * HOUR),
+      },
+    ])
+    .execute()
+
   logger.info({ devices: deviceIds.length, email: ADMIN_EMAIL }, 'e2e seed complete')
 }
 
