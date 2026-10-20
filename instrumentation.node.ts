@@ -1,5 +1,6 @@
 import cron, { type ScheduledTask } from 'node-cron'
 import { getConfig } from '@/lib/config'
+import { getEffectiveScanSettings } from '@/lib/services/runtimeSettings'
 import { logger } from '@/lib/utils/logger'
 import { scanOnce } from '@/lib/services/scanJob'
 import { rollupHourly } from '@/lib/services/rollupJob'
@@ -49,10 +50,13 @@ function state(): SchedulerState {
  * Scanning uses a self-rescheduling timer rather than a cron expression.
  * `SCAN_INTERVAL_SECONDS` is configurable over 30–3600, and cron cannot express
  * an interval that does not divide 60 (e.g. 45s). A timer handles every value.
+ *
+ * The interval is re-resolved on **every tick**, not once at boot. Reading it
+ * only at boot would mean changing the scan interval in Settings had no effect
+ * until the process restarted — which is the same write-only defect this
+ * scheduling rework exists to remove.
  */
 function scheduleScan(): void {
-  const cfg = getConfig()
-  const intervalMs = cfg.SCAN_INTERVAL_SECONDS * 1000
   const s = state()
 
   const runScan = async () => {
@@ -71,10 +75,23 @@ function scheduleScan(): void {
     if (state().scanTimer) scheduleScan()
   }
 
-  s.scanTimer = setTimeout(runScan, intervalMs)
-  // Do not hold the event loop open purely for the timer.
-  s.scanTimer.unref?.()
-  logger.info({ intervalSeconds: cfg.SCAN_INTERVAL_SECONDS }, 'scan job scheduled')
+  void (async () => {
+    let intervalSeconds: number
+    try {
+      intervalSeconds = (await getEffectiveScanSettings()).scanIntervalSeconds
+    } catch {
+      intervalSeconds = getConfig().SCAN_INTERVAL_SECONDS
+    }
+
+    // Re-check: stopScheduler() may have run while the settings read was in
+    // flight, and arming a timer after shutdown would resurrect the scheduler.
+    if (!state().started) return
+
+    s.scanTimer = setTimeout(runScan, intervalSeconds * 1000)
+    // Do not hold the event loop open purely for the timer.
+    s.scanTimer.unref?.()
+    logger.info({ intervalSeconds }, 'scan job scheduled')
+  })()
 }
 
 function scheduleRollup(): void {

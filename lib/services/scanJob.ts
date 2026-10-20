@@ -3,11 +3,17 @@ import { selectScanner } from './scanners/selector'
 import { upsertFromScan, findByMac, findAllMacAddresses } from '@/lib/db/repositories/deviceRepository'
 import { insert as insertConnectionLog } from '@/lib/db/repositories/connectionLogRepository'
 import { db } from '@/lib/db/client'
-import { getConfig } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
 import { eventBusInstance } from '@/lib/services/eventBus'
-import { markStaleDevicesOffline } from '@/lib/services/deviceService'
-import { evaluateUnknownDevice, evaluateDeviceOffline } from '@/lib/services/alertService'
+import { markStaleDevicesOffline, getDeviceById } from '@/lib/services/deviceService'
+import {
+  evaluateUnknownDevice,
+  evaluateDeviceOffline,
+  evaluateBandwidthThreshold,
+} from '@/lib/services/alertService'
+import { recordBandwidthSamples } from '@/lib/services/bandwidthService'
+import { resolveHostnamesForDevices } from '@/lib/services/reverseDns'
+import { getEffectiveScanSettings } from '@/lib/services/runtimeSettings'
 import { lookupVendor, normalizeMac } from './oui'
 import type { Device } from '@/lib/types'
 import type { DiscoveredDevice } from './scanners/types'
@@ -41,13 +47,22 @@ function nowIso(): string {
  */
 export async function scanOnce(): Promise<ScanResult> {
   const start = Date.now()
-  const cfg = getConfig()
   const scanner = await selectScanner()
 
-  logger.info({ scanner: scanner.name, subnet: cfg.NETWORK_SUBNET }, 'starting network scan')
+  // The subnet and interval come from the *effective* settings, not straight
+  // from the environment: a saved settings row overrides it, which is what
+  // makes the settings page real rather than write-only.
+  const effective = await getEffectiveScanSettings()
+
+  logger.info(
+    { scanner: scanner.name, subnet: effective.subnet, source: effective.source },
+    'starting network scan'
+  )
 
   const knownMacs = new Set(await findAllMacAddresses())
-  const discovered = await scanner.scan(cfg.NETWORK_SUBNET)
+  const discovered = await scanner.scan(effective.subnet)
+
+  await applyReverseDns(discovered)
 
   let newDevices = 0
   let reconnected = 0
@@ -69,13 +84,38 @@ export async function scanOnce(): Promise<ScanResult> {
     }
   }
 
-  const wentOffline = await markStaleDevicesOffline(cfg.SCAN_INTERVAL_SECONDS)
+  // Bandwidth sampling runs after ingest so every MAC already has a device row
+  // to attribute the sample to. It is intentionally non-fatal: telemetry must
+  // never take down the scan that produced it.
+  let bandwidthSamples = 0
+  try {
+    const samples = await recordBandwidthSamples(discovered)
+    bandwidthSamples = samples.length
+  } catch (err) {
+    errors += 1
+    logger.error({ err }, 'bandwidth sampling failed')
+  }
+
+  const wentOffline = await markStaleDevicesOffline(effective.scanIntervalSeconds)
   if (wentOffline.length > 0) {
     try {
       await evaluateDeviceOffline(wentOffline)
     } catch (err) {
       errors += 1
       logger.error({ err }, 'failed to evaluate offline alerts')
+    }
+  }
+
+  // F-31: the threshold check needs current throughput, which only exists once
+  // this cycle's samples are stored. This is the call site that was missing —
+  // `evaluateBandwidthThreshold` was defined and never invoked, so a configured
+  // bandwidth rule could never fire.
+  if (bandwidthSamples > 0) {
+    try {
+      await evaluateBandwidthAlerts(discovered)
+    } catch (err) {
+      errors += 1
+      logger.error({ err }, 'failed to evaluate bandwidth alerts')
     }
   }
 
@@ -118,6 +158,52 @@ export async function scanOnce(): Promise<ScanResult> {
 interface IngestCounters {
   onNew: () => void
   onReconnect: () => void
+}
+
+/**
+ * F-03: fills in hostnames the scanner could not provide.
+ *
+ * Mutates in place because the discovery array is this cycle's working set and
+ * a copy would have to be re-joined by MAC for no benefit. A device that
+ * already has a hostname is left exactly as the scanner reported it.
+ */
+async function applyReverseDns(discovered: DiscoveredDevice[]): Promise<void> {
+  try {
+    const resolved = await resolveHostnamesForDevices(discovered)
+    if (resolved.size === 0) return
+
+    for (const device of discovered) {
+      if (device.hostname) continue
+      const hostname = resolved.get(normalizeMac(device.macAddress))
+      if (hostname) device.hostname = hostname
+    }
+  } catch (err) {
+    // Name resolution is a nicety; a dead resolver must not fail a scan.
+    logger.error({ err }, 'reverse-DNS resolution failed')
+  }
+}
+
+/**
+ * F-31: re-reads each device with its freshly stored bandwidth sample and runs
+ * the threshold rule against it.
+ *
+ * Reads back through `getDeviceById` rather than trusting the in-memory sample,
+ * so the value the alert sees is the same value the dashboard will render on
+ * its next 5s poll. An alert that disagrees with the number on screen is worse
+ * than no alert.
+ */
+async function evaluateBandwidthAlerts(discovered: DiscoveredDevice[]): Promise<void> {
+  for (const entry of discovered) {
+    if (!entry.traffic) continue
+
+    const device = await findByMac(normalizeMac(entry.macAddress))
+    if (!device || device.status !== 'online') continue
+
+    const enriched = await getDeviceById(device.id)
+    if (!enriched) continue
+
+    await evaluateBandwidthThreshold(enriched)
+  }
 }
 
 async function ingest(

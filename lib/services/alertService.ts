@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 import * as alertRepo from '@/lib/db/repositories/alertRepository'
 import * as deviceRepo from '@/lib/db/repositories/deviceRepository'
 import { eventBusInstance, type AlertRaisedEvent } from '@/lib/services/eventBus'
-import { getConfig } from '@/lib/config'
+import { isNotificationEnabled } from '@/lib/services/notificationPreferences'
+import { getEffectiveScanSettings } from '@/lib/services/runtimeSettings'
 import { logger } from '@/lib/utils/logger'
 import type {
   AlertType,
@@ -89,6 +90,9 @@ async function raise(
 export async function evaluateUnknownDevice(device: Device): Promise<void> {
   const rules = await alertRepo.getActiveGlobalAlerts('unknown_device')
   for (const rule of rules) {
+    // F-52: the rule's owner may have switched this type off.
+    if (!(await isNotificationEnabled(rule.userId, rule.alertType))) continue
+
     await raise(
       rule,
       device,
@@ -103,6 +107,11 @@ export async function evaluateUnknownDevice(device: Device): Promise<void> {
 export async function evaluateDeviceOffline(devices: Device[]): Promise<void> {
   if (devices.length === 0) return
 
+  // The interval that actually governs scanning may be a saved setting rather
+  // than the env default, and the alert text quotes it — reporting 60s to a
+  // user who configured 120s is a small lie that erodes trust in the alert.
+  const { scanIntervalSeconds } = await getEffectiveScanSettings()
+
   const perDevice = await Promise.all(
     devices.map(async (device) => {
       const [bound, global] = await Promise.all([
@@ -111,12 +120,14 @@ export async function evaluateDeviceOffline(devices: Device[]): Promise<void> {
       ])
       const offline = [...bound, ...global].filter((r) => r.alertType === 'device_offline')
       for (const rule of offline) {
+        if (!(await isNotificationEnabled(rule.userId, rule.alertType))) continue
+
         await raise(
           rule,
           device,
           'Device went offline',
           `${deviceLabel(device)} has not responded for ${
-            getConfig().SCAN_INTERVAL_SECONDS * MISSED_SCANS_BEFORE_OFFLINE
+            scanIntervalSeconds * MISSED_SCANS_BEFORE_OFFLINE
           } seconds`,
           'medium'
         )
@@ -136,6 +147,7 @@ export async function evaluateBandwidthThreshold(device: EnrichedDevice): Promis
   for (const rule of rules) {
     if (rule.alertType !== 'bandwidth_exceeded' || rule.threshold == null) continue
     if (totalMbps <= rule.threshold) continue
+    if (!(await isNotificationEnabled(rule.userId, rule.alertType))) continue
 
     await raise(
       rule,

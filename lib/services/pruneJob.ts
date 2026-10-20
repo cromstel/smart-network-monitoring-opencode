@@ -1,5 +1,5 @@
 import { db } from '@/lib/db/client'
-import { getConfig } from '@/lib/config'
+import { getEffectiveRetentionSettings } from '@/lib/services/runtimeSettings'
 import { logger } from '@/lib/utils/logger'
 
 const BATCH_SIZE = 10_000
@@ -31,14 +31,17 @@ export async function pruneData(): Promise<{
   scanHistory: number
   sessions: number
 }> {
-  const cfg = getConfig()
-  const retentionMs = cfg.DATA_RETENTION_DAYS * 24 * 60 * 60 * 1000
+  // F-51: retention is a saved setting, not only an env default. Reading the
+  // effective value is what makes the "Retention (days)" field on the settings
+  // page actually control how long history survives.
+  const { dataRetentionDays } = await getEffectiveRetentionSettings()
+  const retentionMs = dataRetentionDays * 24 * 60 * 60 * 1000
   const cutoff = new Date(Date.now() - retentionMs)
   const scanCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   const now = new Date()
 
   logger.info(
-    { retentionDays: cfg.DATA_RETENTION_DAYS, cutoff: cutoff.toISOString() },
+    { retentionDays: dataRetentionDays, cutoff: cutoff.toISOString() },
     'starting data pruning'
   )
 
