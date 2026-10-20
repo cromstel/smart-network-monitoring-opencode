@@ -154,6 +154,18 @@ beforeEach(async () => {
 
   afterAll(async () => {
     await db.destroy()
+    // The other suites that destroy the shared client also drop the
+    // globalThis cache entry; this one did not. `client.ts` exports
+    // `g.__db ?? create()` and jest gives each test file its own module
+    // registry, so with the stale entry left behind, the next file in this
+    // worker re-evaluates that expression, finds the cached — but now closed —
+    // instance and reuses it instead of opening a fresh one. That is a real
+    // source of cross-file nondeterminism in a suite whose results are read as
+    // trustworthy. It is not proven to be the cause of the intermittent
+    // "foreign key did not throw" failure observed once here (green in
+    // isolation and on re-run), but it is the same class of defect and costs
+    // nothing to remove.
+    delete (globalThis as { __db?: unknown }).__db
   })
 
   describe('Alert queries must be scoped by owner (user_id)', () => {
