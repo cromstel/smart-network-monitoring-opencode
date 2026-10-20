@@ -6,11 +6,11 @@ import { test, expect, signIn } from './fixtures'
  *
  * Two things about the real page shape this encodes:
  *
- *  - The rule form is always visible *for this suite*, because the seed
- *    creates an ADMIN; the form and the delete buttons are hidden from
- *    VIEWERs, so a spec for that surface would need a second account. "Add
- *    rule" is the submit button, not a disclosure. The type control is a
- *    native <select>, so it is driven with selectOption rather than by
+ *  - The rule form is always visible *for this suite*, because these specs
+ *    sign in as the seeded ADMIN. The VIEWER/MEMBER boundary lives in
+ *    `role-gating.spec.ts`, which is the only file that signs in as anyone
+ *    else. "Add rule" is the submit button, not a disclosure. The type control
+ *    is a native <select>, so it is driven with selectOption rather than by
  *    clicking options, which are not rendered while a native dropdown is
  *    closed.
  *  - Every spec in this file shares one seeded database, so assertions count

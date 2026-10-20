@@ -13,6 +13,35 @@ import type { DeviceType } from '../lib/types'
 
 const ADMIN_EMAIL = 'e2e-admin@example.com'
 const ADMIN_PASSWORD = 'E2e-Admin-Pass-2026'
+const MEMBER_EMAIL = 'e2e-member@example.com'
+const MEMBER_PASSWORD = 'E2e-Member-Pass-2026'
+const VIEWER_EMAIL = 'e2e-viewer@example.com'
+const VIEWER_PASSWORD = 'E2e-Viewer-Pass-2026'
+
+/**
+ * One account per role, so the suite can prove the role-aware UI in both
+ * directions rather than only that the admin path works. The matrix:
+ *
+ *   ADMIN   canManage ✓  isAdmin ✓
+ *   MEMBER  canManage ✓  isAdmin ✗
+ *   VIEWER  canManage ✗  isAdmin ✗
+ *
+ * MEMBER is the load-bearing one. It is the boundary the `permissionsFor`
+ * docblock describes — acting on your *own* resources (alert rules, device
+ * rename) versus changing *global* configuration (settings, router
+ * credentials, PayStack) — and without it the only provable distinction is
+ * ADMIN versus everyone else, which a single missing `&&` would still pass.
+ */
+const USERS: Array<{
+  email: string
+  password: string
+  name: string
+  role: 'ADMIN' | 'MEMBER' | 'VIEWER'
+}> = [
+  { email: ADMIN_EMAIL, password: ADMIN_PASSWORD, name: 'E2E Admin', role: 'ADMIN' },
+  { email: MEMBER_EMAIL, password: MEMBER_PASSWORD, name: 'E2E Member', role: 'MEMBER' },
+  { email: VIEWER_EMAIL, password: VIEWER_PASSWORD, name: 'E2E Viewer', role: 'VIEWER' },
+]
 
 const DEVICES: Array<{ mac: string; ip: string; name: string; type: DeviceType }> = [
   { mac: 'A4:83:E7:2C:11:09', ip: '192.168.1.42', name: "Ana's iPhone", type: 'phone' },
@@ -48,32 +77,46 @@ async function run(): Promise<void> {
   }
 
   const now = new Date().toISOString()
-  const adminId = randomUUID()
+  const userIds: Record<'ADMIN' | 'MEMBER' | 'VIEWER', string> = {
+    ADMIN: '',
+    MEMBER: '',
+    VIEWER: '',
+  }
 
-  await db
-    .insertInto('users')
-    .values({
-      id: adminId,
-      email: ADMIN_EMAIL,
-      password_hash: await hashPassword(ADMIN_PASSWORD),
-      name: 'E2E Admin',
-      role: 'ADMIN',
-      is_active: 1,
-      created_at: now,
-      updated_at: now,
-    })
-    .execute()
+  for (const account of USERS) {
+    const id = randomUUID()
+    userIds[account.role] = id
 
-  await db
-    .insertInto('user_settings')
-    .values({
-      id: randomUUID(),
-      user_id: adminId,
-      network_subnet: '192.168.1.0/24',
-      created_at: now,
-      updated_at: now,
-    })
-    .execute()
+    await db
+      .insertInto('users')
+      .values({
+        id,
+        email: account.email,
+        password_hash: await hashPassword(account.password),
+        name: account.name,
+        role: account.role,
+        is_active: 1,
+        created_at: now,
+        updated_at: now,
+      })
+      .execute()
+
+    await db
+      .insertInto('user_settings')
+      .values({
+        id: randomUUID(),
+        user_id: id,
+        network_subnet: '192.168.1.0/24',
+        created_at: now,
+        updated_at: now,
+      })
+      .execute()
+  }
+
+  // Notifications belong to the admin, which is the account the notifications
+  // and alert-rule specs sign in as. The other two roles seed none on purpose:
+  // their activity panel rendering its empty state is itself worth asserting.
+  const adminId = userIds.ADMIN
 
   const deviceIds: string[] = []
 
@@ -196,7 +239,10 @@ async function run(): Promise<void> {
     ])
     .execute()
 
-  logger.info({ devices: deviceIds.length, email: ADMIN_EMAIL }, 'e2e seed complete')
+  logger.info(
+    { devices: deviceIds.length, users: USERS.map((u) => ({ email: u.email, role: u.role })) },
+    'e2e seed complete'
+  )
 }
 
 run()

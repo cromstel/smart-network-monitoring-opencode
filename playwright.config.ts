@@ -5,7 +5,8 @@ const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`
 
 export default defineConfig({
   testDir: './e2e',
-  // The seeded admin password lives in e2e/.env.e2e — never a real secret.
+  // The seeded accounts' passwords are throwaway values written in
+  // e2e/fixtures.ts and mirrored from scripts/e2e-seed.ts — never real secrets.
   timeout: 45_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
