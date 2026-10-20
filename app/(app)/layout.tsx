@@ -2,8 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
 import { useEventStream } from '@/lib/hooks/useEventStream'
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser'
+import { ThemeSync, type Theme } from '@/components/ThemeSync'
 
 // Order is the reading order of the product: what is happening now, then
 // what exists, then what to act on, then configuration. '/' is the overview
@@ -15,6 +17,36 @@ const NAV = [
   { href: '/alerts', label: 'Alerts' },
   { href: '/settings', label: 'Settings' },
 ]
+
+/**
+ * F-53: the theme the user actually saved.
+ *
+ * **This must use the exact same `queryFn` as the settings page.** React Query
+ * caches by key alone — it does not know that two call sites intended different
+ * shapes. An earlier version of this hook returned the bare theme string while
+ * the settings page returned the whole `{ data }` envelope, so whichever
+ * component mounted first decided the cached shape for the other. When the
+ * settings page won, this hook received an object where it expected a string
+ * and silently applied nothing: the setting round-tripped, and the screen never
+ * changed.
+ *
+ * Sharing the key with an identical fetcher is what makes a save here apply
+ * immediately — `invalidateQueries({ queryKey: ['settings'] })` refreshes both.
+ */
+function useThemeSetting(): Theme | undefined {
+  const { data } = useQuery({
+    queryKey: ['settings'],
+    queryFn: async () => {
+      const res = await fetch('/api/settings')
+      if (!res.ok) throw new Error('Failed to load settings')
+      return (await res.json()) as { data: { theme?: Theme } }
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+
+  return data?.data?.theme ?? undefined
+}
 
 export default function DashboardLayout({
   children,
@@ -30,6 +62,9 @@ export default function DashboardLayout({
   // themselves. Authorisation is enforced in every handler, not here.
   const { data: user } = useCurrentUser()
 
+  // F-53: reconcile the rendered palette with the saved one.
+  const theme = useThemeSetting()
+
   async function signOut() {
     await fetch('/api/auth/logout', { method: 'POST' })
     router.replace('/auth/login')
@@ -38,6 +73,7 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
+      <ThemeSync theme={theme} />
       <aside className="flex shrink-0 flex-col border-b border-slate-800 p-4 md:w-56 md:border-b-0 md:border-r">
         <Link href="/" className="block px-3 py-2 text-sm font-semibold text-slate-200">
           Home Network Monitor

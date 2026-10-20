@@ -1,3 +1,80 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * F-53: the light palette.
+ *
+ * The app is written with explicit slate-950/slate-100 utilities rather than
+ * CSS variables, so "light mode" is implemented as a set of targeted overrides
+ * under `.light` on <html>. This keeps every component unchanged and avoids
+ * rewriting hundreds of className strings into token lookups.
+ *
+ * The `.light` class is applied by `ThemeScript` before first paint and
+ * reconciled by `ThemeSync` once the stored setting is known.
+ */
+
+.light {
+  color-scheme: light;
+}
+
+.light body {
+  background-color: rgb(248 250 252); /* slate-50 */
+  color: rgb(15 23 42); /* slate-900 */
+}
+
+/* Surfaces */
+.light .bg-slate-950 {
+  background-color: rgb(248 250 252);
+}
+
+.light .bg-slate-900 {
+  background-color: rgb(255 255 255);
+}
+
+.light .bg-slate-800 {
+  background-color: rgb(241 245 249); /* slate-100 */
+}
+
+.light .bg-slate-700 {
+  background-color: rgb(226 232 240); /* slate-200 */
+}
+
+/* Text */
+.light .text-slate-100 {
+  color: rgb(15 23 42);
+}
+
+.light .text-slate-200 {
+  color: rgb(30 41 59); /* slate-800 */
+}
+
+.light .text-slate-300 {
+  color: rgb(51 65 85); /* slate-700 */
+}
+
+.light .text-slate-400 {
+  color: rgb(71 85 105); /* slate-600 */
+}
+
+.light .text-slate-500 {
+  color: rgb(100 116 139); /* slate-500 */
+}
+
+/* Borders */
+.light .border-slate-700 {
+  border-color: rgb(203 213 225); /* slate-300 */
+}
+
+.light .border-slate-800 {
+  border-color: rgb(226 232 240); /* slate-200 */
+}
+
+/* A hover that is visible on a light background */
+.light .hover\:bg-slate-800:hover {
+  background-color: rgb(241 245 249);
+}
+
+.light .hover\:bg-slate-900:hover {
+  background-color: rgb(241 245 249);
+}
