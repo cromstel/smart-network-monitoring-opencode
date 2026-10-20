@@ -3,6 +3,7 @@ import { createMigrator } from '@/lib/db/migrator'
 import { eventBusInstance, type AppEvent } from '@/lib/services/eventBus'
 import { scanOnce } from '@/lib/services/scanJob'
 import { listNotifications, createAlert } from '@/lib/db/repositories/alertRepository'
+import { resetBandwidthSampler } from '@/lib/services/bandwidthService'
 import { randomUUID } from 'node:crypto'
 
 jest.mock('@/lib/utils/logger', () => ({
@@ -36,13 +37,22 @@ function fakeScanner(macs: string[]) {
   }
 }
 
+// File-scope setup and teardown. `db` is a cached module singleton, so there
+// must be exactly one `destroy()` per file: a per-describe `afterAll` runs when
+// that describe finishes, closing the client the later describe still needs.
+beforeAll(async () => {
+  const result = await createMigrator(db).migrateToLatest()
+  if (result.error) throw result.error
+})
+
+afterAll(async () => {
+  eventBusInstance.clear()
+  await db.destroy()
+  delete (globalThis as { __db?: unknown }).__db
+})
+
 describe('scanJob — one connection, exactly one alert (B-50)', () => {
   let userId: string
-
-  beforeAll(async () => {
-    const result = await createMigrator(db).migrateToLatest()
-    if (result.error) throw result.error
-  })
 
   beforeEach(async () => {
     await db.deleteFrom('notifications').execute()
@@ -74,12 +84,6 @@ describe('scanJob — one connection, exactly one alert (B-50)', () => {
       alertType: 'unknown_device',
       threshold: null,
     })
-  })
-
-  afterAll(async () => {
-    eventBusInstance.clear()
-    await db.destroy()
-    delete (globalThis as { __db?: unknown }).__db
   })
 
   it('raises one alert for a newly discovered device, not one per scan', async () => {
@@ -174,6 +178,161 @@ describe('scanJob — one connection, exactly one alert (B-50)', () => {
 
     const history = await db.selectFrom('network_scan_history').select('status').executeTakeFirstOrThrow()
     expect(history.status).toBe('partial')
+
+    selectMock.mockRestore()
+  })
+})
+
+/**
+ * The integration half of the bandwidth fix.
+ *
+ * `bandwidthService.test.ts` proves the sampler converts counters correctly in
+ * isolation. These tests prove `scanOnce` actually *calls* it and that the
+ * resulting sample is visible to the threshold rule — which is the part that
+ * was missing: `evaluateBandwidthThreshold` was defined and never invoked, so a
+ * configured bandwidth rule could never fire no matter what the user set.
+ *
+ * No `beforeAll`/`afterAll` here on purpose: `db` is a cached module singleton,
+ * and a second teardown in the same file would close a client the first
+ * describe block had already destroyed.
+ */
+describe('scanJob — bandwidth sampling is wired into the cycle', () => {
+  const BWMAC = 'DE:AD:BE:EF:00:01'
+
+  function trafficScanner(up: number, down: number) {
+    return {
+      name: 'simulated' as const,
+      isAvailable: async () => true,
+      scan: async () => [
+        {
+          macAddress: BWMAC,
+          ipAddress: '192.168.1.200',
+          hostname: 'metered-device',
+          traffic: { uploadBytes: up, downloadBytes: down },
+        },
+      ],
+    }
+  }
+
+  beforeEach(async () => {
+    resetBandwidthSampler()
+    await db.deleteFrom('bandwidth_metrics').execute()
+    await db.deleteFrom('notifications').execute()
+    await db.deleteFrom('device_alerts').execute()
+    await db.deleteFrom('devices').execute()
+    await db.deleteFrom('users').execute()
+    await db.deleteFrom('network_scan_history').execute()
+  })
+
+  it('writes no bandwidth row on the first cycle, but does on the second', async () => {
+    const selectMock = jest
+      .spyOn(require('@/lib/services/scanners/selector'), 'selectScanner')
+      .mockResolvedValue(trafficScanner(0, 0) as never)
+
+    await scanOnce()
+    expect(await db.selectFrom('bandwidth_metrics').selectAll().execute()).toHaveLength(0)
+
+    selectMock.mockResolvedValue(trafficScanner(10_000_000, 30_000_000) as never)
+    await scanOnce()
+
+    const rows = await db.selectFrom('bandwidth_metrics').selectAll().execute()
+    expect(rows).toHaveLength(1)
+
+    selectMock.mockRestore()
+  })
+
+  it('raises the bandwidth alert once the threshold is exceeded (F-31)', async () => {
+    const now = new Date().toISOString()
+    const userId = randomUUID()
+    await db
+      .insertInto('users')
+      .values({
+        id: userId,
+        email: `bw-${userId}@example.com`,
+        password_hash: 'x',
+        name: 'Owner',
+        role: 'ADMIN',
+        is_active: 1,
+        created_at: now,
+        updated_at: now,
+      })
+      .execute()
+
+    const selectMock = jest
+      .spyOn(require('@/lib/services/scanners/selector'), 'selectScanner')
+      .mockResolvedValue(trafficScanner(0, 0) as never)
+
+    // First cycle establishes the device and the traffic baseline.
+    await scanOnce()
+
+    const device = await db
+      .selectFrom('devices')
+      .select('id')
+      .where('mac_address', '=', BWMAC)
+      .executeTakeFirstOrThrow()
+
+    // A rule at 1 Mbps, bound to that device.
+    await createAlert({
+      userId,
+      deviceId: device.id,
+      alertType: 'bandwidth_exceeded',
+      threshold: 1,
+    })
+
+    // Second cycle: ~40 Mbps of traffic, far above the 1 Mbps rule.
+    selectMock.mockResolvedValue(trafficScanner(10_000_000, 30_000_000) as never)
+    await scanOnce()
+
+    const notifications = await listNotifications(userId)
+    const bandwidthAlerts = notifications.filter((n) => n.type === 'bandwidth_exceeded')
+    expect(bandwidthAlerts).toHaveLength(1)
+    expect(bandwidthAlerts[0]?.title).toMatch(/bandwidth/i)
+
+    selectMock.mockRestore()
+  })
+
+  it('stays silent when the threshold is not exceeded', async () => {
+    const now = new Date().toISOString()
+    const userId = randomUUID()
+    await db
+      .insertInto('users')
+      .values({
+        id: userId,
+        email: `quiet-${userId}@example.com`,
+        password_hash: 'x',
+        name: 'Owner',
+        role: 'ADMIN',
+        is_active: 1,
+        created_at: now,
+        updated_at: now,
+      })
+      .execute()
+
+    const selectMock = jest
+      .spyOn(require('@/lib/services/scanners/selector'), 'selectScanner')
+      .mockResolvedValue(trafficScanner(0, 0) as never)
+    await scanOnce()
+
+    const device = await db
+      .selectFrom('devices')
+      .select('id')
+      .where('mac_address', '=', BWMAC)
+      .executeTakeFirstOrThrow()
+
+    // A very high threshold: normal traffic must not trip it. 40 MB in one
+    // interval is 160 Mbps at the floor, so 1 Gbps is unambiguously clear.
+    await createAlert({
+      userId,
+      deviceId: device.id,
+      alertType: 'bandwidth_exceeded',
+      threshold: 1_000,
+    })
+
+    selectMock.mockResolvedValue(trafficScanner(10_000_000, 30_000_000) as never)
+    await scanOnce()
+
+    const notifications = await listNotifications(userId)
+    expect(notifications.filter((n) => n.type === 'bandwidth_exceeded')).toHaveLength(0)
 
     selectMock.mockRestore()
   })
