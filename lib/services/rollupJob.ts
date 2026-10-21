@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db/client'
 import { logger } from '@/lib/utils/logger'
 import { sql, type RawBuilder } from 'kysely'
@@ -52,6 +51,29 @@ function sumCounter(col: 'upload_total' | 'download_total'): RawBuilder<string> 
   return sql<string>`CAST(SUM(CAST(${sql.ref(col)} AS INTEGER)) AS TEXT)`
 }
 
+/**
+ * A fresh UUID **per output row**, per dialect.
+ *
+ * This must be a SQL expression, not a JS `randomUUID()` embedded in the
+ * template: kysely interpolates a JS value as a *literal*, so the whole
+ * INSERT…SELECT would stamp the same id on every grouped row and die on the
+ * primary key as soon as an hour contained two or more devices
+ * (`UNIQUE constraint failed: bandwidth_hourly.id` — seen live on a 12-device
+ * dev network, where the job failed every single hour). SQL functions are
+ * evaluated once per row, which is what this needs.
+ *
+ * The SQLite form builds the canonical 8-4-4-4-12 hex shape from randomblob;
+ * `hex()` emits uppercase, hence the outer `lower()`.
+ */
+function newUuidPerRow(): RawBuilder<string> {
+  if (isMysql()) {
+    return sql<string>`UUID()`
+  }
+  return sql<string>`lower(
+    hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(6))
+  )`
+}
+
 function previousHourWindow(): { start: Date; end: Date } {
   const now = new Date()
   const start = new Date(
@@ -96,7 +118,7 @@ export async function rollupHourly(): Promise<number> {
       db
         .selectFrom('bandwidth_metrics')
         .select([
-          sql<string>`${randomUUID()}`.as('id'),
+          newUuidPerRow().as('id'),
           'device_id',
           // The window is exactly one hour wide, so every row in the group
           // belongs to the hour we already know. Writing the known ISO value

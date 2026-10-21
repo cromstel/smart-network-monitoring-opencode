@@ -321,5 +321,66 @@ describe('scheduled jobs — retention and rollup', () => {
       expect(rows).toHaveLength(1)
       expect(Number(rows[0]!.sample_count)).toBe(1)
     })
+
+    it('rolls up several devices in the same hour without an id collision', async () => {
+      // Regression: the INSERT…SELECT embedded one build-time `randomUUID()`
+      // literal, so every grouped row shared a single id and the job died on
+      // the primary key (`UNIQUE constraint failed: bandwidth_hourly.id`)
+      // the moment an hour held two or more devices — i.e. always, on any
+      // real network. The id must be generated per row, in SQL.
+      const now = new Date()
+      const hourStart = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() - 1, 0, 0)
+      )
+      const inside = new Date(hourStart.getTime() + 10 * 60 * 1000).toISOString()
+
+      const secondDeviceId = randomUUID()
+      await db
+        .insertInto('devices')
+        .values({
+          id: secondDeviceId,
+          mac_address: 'AA:BB:CC:00:11:33',
+          ip_address: '192.168.1.6',
+          device_type: 'phone',
+          status: 'online',
+          total_connection_time: '0',
+          first_seen: iso(200 * DAY),
+          last_seen: iso(1 * DAY),
+          created_at: iso(200 * DAY),
+          updated_at: iso(1 * DAY),
+        })
+        .execute()
+
+      const metric = (deviceId: string, upload: number, download: number) => ({
+        id: randomUUID(),
+        device_id: deviceId,
+        timestamp: inside,
+        upload_speed: upload,
+        download_speed: download,
+        upload_total: String(upload * 100),
+        download_total: String(download * 100),
+        created_at: inside,
+      })
+
+      await db
+        .insertInto('bandwidth_metrics')
+        .values([
+          metric(deviceId, 2, 10),
+          metric(deviceId, 4, 30),
+          metric(secondDeviceId, 1, 5),
+        ])
+        .execute()
+
+      await expect(rollupHourly()).resolves.toBeGreaterThanOrEqual(2)
+
+      const rows = await db.selectFrom('bandwidth_hourly').selectAll().execute()
+      expect(rows).toHaveLength(2)
+      const ids = rows.map((r) => r.id)
+      expect(new Set(ids).size).toBe(2) // distinct primary keys
+      const byDevice = new Map(rows.map((r) => [r.device_id, r]))
+      expect(Number(byDevice.get(deviceId)!.sample_count)).toBe(2)
+      expect(Number(byDevice.get(secondDeviceId)!.sample_count)).toBe(1)
+      expect(Number(byDevice.get(secondDeviceId)!.avg_download_speed)).toBeCloseTo(5, 5)
+    })
   })
 })
