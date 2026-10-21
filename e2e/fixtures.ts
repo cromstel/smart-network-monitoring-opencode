@@ -1,4 +1,5 @@
 import { test as base, expect, type Page } from '@playwright/test'
+import { e2eAccount } from '../lib/config/e2eAccounts'
 
 /**
  * Shared E2E fixtures.
@@ -7,14 +8,12 @@ import { test as base, expect, type Page } from '@playwright/test'
  * so it never touches a real network or a developer's data directory. State is
  * reset between specs by recreating the database, which keeps each spec
  * independent rather than order-dependent.
+ *
+ * The accounts themselves live in `lib/config/e2eAccounts.ts`, shared with the
+ * seed that writes them. Keeping a copy here would let the seed and the spec
+ * drift apart, and the failure would look like a broken login rather than a
+ * mismatched fixture.
  */
-
-export const ADMIN_EMAIL = 'e2e-admin@example.com'
-export const ADMIN_PASSWORD = 'E2e-Admin-Pass-2026'
-export const MEMBER_EMAIL = 'e2e-member@example.com'
-export const MEMBER_PASSWORD = 'E2e-Member-Pass-2026'
-export const VIEWER_EMAIL = 'e2e-viewer@example.com'
-export const VIEWER_PASSWORD = 'E2e-Viewer-Pass-2026'
 
 /** Credentials, not a session: `signInAs` drives the real form with these. */
 export interface Credentials {
@@ -22,9 +21,43 @@ export interface Credentials {
   password: string
 }
 
-export const ADMIN: Credentials = { email: ADMIN_EMAIL, password: ADMIN_PASSWORD }
-export const MEMBER: Credentials = { email: MEMBER_EMAIL, password: MEMBER_PASSWORD }
-export const VIEWER: Credentials = { email: VIEWER_EMAIL, password: VIEWER_PASSWORD }
+/**
+ * Accessors, not values: each property calls `e2eAccount()` on access.
+ *
+ * `e2eAccounts.ts` documents why its readers are lazy — the same module is
+ * imported by a seed script and by the Playwright process, and a module-scope
+ * read captures whichever environment ordering happened to occur first. These
+ * used to be six module-scope consts (`ADMIN_EMAIL = e2eAccount('ADMIN').email`),
+ * which re-introduced exactly that eager read one file over. Getters keep the
+ * spec call-sites (`ADMIN.email`) unchanged while deferring the lookup to the
+ * moment a test actually signs in.
+ */
+export const ADMIN: Credentials = {
+  get email() {
+    return e2eAccount('ADMIN').email
+  },
+  get password() {
+    return e2eAccount('ADMIN').password
+  },
+}
+
+export const MEMBER: Credentials = {
+  get email() {
+    return e2eAccount('MEMBER').email
+  },
+  get password() {
+    return e2eAccount('MEMBER').password
+  },
+}
+
+export const VIEWER: Credentials = {
+  get email() {
+    return e2eAccount('VIEWER').email
+  },
+  get password() {
+    return e2eAccount('VIEWER').password
+  },
+}
 
 export const test = base.extend<{ page: Page }>({
   page: async ({ page }, use) => {

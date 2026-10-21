@@ -1,4 +1,4 @@
-# Local MariaDB for development, and the same engine the CI test leg uses.
+﻿# Local MariaDB for development, and the same engine the CI test leg uses.
 # Production installs normally use SQLite.
 #
 # MariaDB, not MySQL. The deployed database is MariaDB 12.3, and the two
@@ -15,7 +15,7 @@
 #
 # The credentials are required, not defaulted. This file previously carried
 # ${DB_PASSWORD:-monitor}, so a container started without a .env would come up
-# with a working password of "monitor" — the same word as the account name, and
+# with a working password of "monitor" â€” the same word as the account name, and
 # the password this repository leaked before the history rewrite. A default
 # that is itself a credential is how that leak happened the first time, so
 # there is no fallback here. Put the values in .env (untracked) or export them
@@ -57,6 +57,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # The image listens on this port; the mapping below publishes it. One
+        # variable (`PORT`) so the two cannot disagree â€” a build arg of 8080
+        # with a mapping of 9000 would publish a port nothing is listening on.
+        PORT: ${PORT:-9000}
+        # The SQLite filename inside the volume. Derived from `APP_NAME` so a
+        # white-labelled deployment gets its own file instead of writing into
+        # one named after this product. Path separators and spaces are stripped
+        # because this becomes a filename, not a display string.
+        DB_FILE_NAME: ${DB_FILE_NAME:-app.db}
     restart: unless-stopped
     depends_on:
       mariadb:
@@ -65,17 +75,23 @@ services:
       - .env
     environment:
       # Container-internal values always win over the host .env.
+      # Required, not defaulted: the product's name is per-deployment, and a
+      # fallback here would brand the container with another product's name.
+      APP_NAME: ${APP_NAME:?set APP_NAME}
       DB_CLIENT: mysql
       DB_HOST: mariadb
       DB_PORT: 3306
-      DB_NAME: ${DB_NAME:-home_monitor}
-      DB_USER: ${DB_USER:-monitor}
-      # No fallback, matching the mariadb service above. ${DB_PASSWORD:-monitor}
-      # would quietly reintroduce a known password on a container started
-      # without a .env.
+      # No fallback. `${DB_NAME:-home_monitor}` / `${DB_USER:-monitor}` meant a
+      # container started without a .env connected as an account named after
+      # its own database â€” the same shape as the leaked password this file's
+      # header describes. All three connection values are required together,
+      # matching the `mariadb` service above and `lib/config.ts`, which refuses
+      # to boot with DB_CLIENT=mysql and any of them missing.
+      DB_NAME: ${DB_NAME:?set DB_NAME}
+      DB_USER: ${DB_USER:?set DB_USER}
       DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "${PORT:-9000}:${PORT:-9000}"
     volumes:
       - app-data:/data
     # Grants raw sockets so the ARP scanner works. Without it the app falls

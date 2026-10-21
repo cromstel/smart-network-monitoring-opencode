@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { getConfig } from '@/lib/config'
 import { db } from '@/lib/db/client'
 import { logger } from '@/lib/utils/logger'
 

@@ -1,12 +1,14 @@
 import { defineConfig, devices } from '@playwright/test'
+import { e2ePort, loopbackOrigin } from './lib/config/ports'
 
-const PORT = Number(process.env.E2E_PORT ?? 3100)
-const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`
+const PORT = e2ePort()
+const baseURL = process.env.E2E_BASE_URL ?? loopbackOrigin(PORT)
 
 export default defineConfig({
   testDir: './e2e',
-  // The seeded accounts' passwords are throwaway values written in
-  // e2e/fixtures.ts and mirrored from scripts/e2e-seed.ts — never real secrets.
+  // The seeded accounts' passwords are throwaway values. They live in one
+  // module, `lib/config/e2eAccounts.ts`, shared with the seed that writes them
+  // — never real secrets.
   timeout: 45_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
@@ -42,6 +44,14 @@ export default defineConfig({
           NODE_ENV: 'production',
           DB_CLIENT: 'sqlite',
           DB_FILE: './data/e2e.db',
+          // A nameless server cannot boot: `APP_NAME` is required, with no
+          // fallback anywhere. This is a *fixture* value, not branding — the
+          // suite asserts nothing about the name (no title or heading
+          // assertions), and a distinct one makes it obvious in a screenshot
+          // that the run is against the throwaway test server. It must be
+          // present at *runtime* — nothing that reads it is prerendered
+          // (`app/layout.tsx` is force-dynamic).
+          APP_NAME: 'E2E Network Monitor',
           SCANNER_MODE: 'simulated',
           SCAN_INTERVAL_SECONDS: '30',
           LOG_LEVEL: 'warn',

@@ -47,6 +47,39 @@ a new version is available rather than waiting for a maintenance window.
 - CORS policies restrict allowed origins
 - Secrets are never logged or exposed in responses
 
+## Required Configuration
+
+There are no built-in credentials, keys or identity values, in any environment —
+including development. Every value below must be supplied, and the process
+refuses to start without it.
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `SESSION_SECRET` | always | 32+ characters. Keys the HMAC-SHA256 under which session-token hashes are stored (`lib/utils/crypto.ts`); rotating it invalidates every session. |
+| `ENCRYPTION_KEY` | always | 32+ characters. Encrypts stored router credentials. |
+| `APP_NAME` | always | Shown in the browser tab, sidebar and sign-in page. |
+| `DB_NAME` | when `DB_CLIENT=mysql` | The schema to connect to. |
+| `DB_USER` | when `DB_CLIENT=mysql` | The account to connect as. |
+| `DB_PASSWORD` | when `DB_CLIENT=mysql` | Never defaulted to a usable value. |
+
+Generate the two keys with `openssl rand -hex 32`. `lib/config.ts` validates all
+of them at boot and reports every missing or weak value in one message.
+
+An earlier version substituted literal `dev-only-insecure-*` defaults whenever a
+secret was absent outside production, and defaulted the schema and user name to
+`home_monitor` / `monitor`. Both are removed:
+
+- a **usable default for a secret is a published key**, shared by every clone of
+  this repository and every CI run that used it;
+- a **default schema or user name** lets a deployment that forgot to configure
+  one silently connect to whichever database and account happen to exist under
+  that name — a wrong-database bug that looks like a working connection.
+
+Because a default enforced only in production still allows a weak value to
+travel from a developer's machine to staging to the production host, the
+presence and length checks apply in **every** environment. The failure is raised
+where the placeholder was written, not at the deploy that inherits it.
+
 ## PayStack Integration
 
 - PayStack API credentials are stored in environment variables only

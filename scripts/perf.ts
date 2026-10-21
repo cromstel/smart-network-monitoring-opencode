@@ -381,7 +381,7 @@ async function main(): Promise<void> {
       bandwidthRows,
       databaseFile:
         cfg.DB_CLIENT === 'mysql'
-          ? `${process.env.DB_HOST ?? 'localhost'}:${process.env.DB_PORT ?? 3306}/${cfg.DB_NAME}`
+          ? `${process.env.DB_HOST ?? 'localhost'}:${process.env.DB_PORT ?? 3306}/${process.env.DB_NAME ?? '(unset)'}`
           : (process.env.DB_FILE ?? '(unset)'),
       dialect: cfg.DB_CLIENT,
       engineVersion: engine.version,

@@ -1,7 +1,8 @@
 'use client'
 
-import Script from 'next/script'
 import { useEffect } from 'react'
+
+import { STORAGE_KEY } from './ThemeScript'
 
 /**
  * F-53: applies the stored theme to the document.
@@ -28,35 +29,6 @@ import { useEffect } from 'react'
 
 export type Theme = 'dark' | 'light'
 
-const STORAGE_KEY = 'hnm-theme'
-
-/**
- * Applies the remembered palette before first paint.
- *
- * `next/script` with `beforeInteractive` rather than a raw `<script>` element:
- * Next hoists this into the document head and runs it ahead of hydration,
- * outside React's reconciliation. A hand-rolled inline `<script>` ran at the
- * same moment but remained part of the tree React compared, so the class it
- * added made the hydrated DOM differ from the server HTML — React reported a
- * text-content mismatch (error #418) and discarded the hydrated tree.
- */
-export function ThemeScript() {
-  const script = `
-(function() {
-  try {
-    var stored = localStorage.getItem('${STORAGE_KEY}');
-    var theme = stored === 'light' ? 'light' : 'dark';
-    document.documentElement.classList.toggle('light', theme === 'light');
-  } catch (e) {}
-})();
-`
-  return (
-    <Script id="hnm-theme-init" strategy="beforeInteractive">
-      {script}
-    </Script>
-  )
-}
-
 export function applyTheme(theme: Theme): void {
   document.documentElement.classList.toggle('light', theme === 'light')
   try {
@@ -72,7 +44,7 @@ export function applyTheme(theme: Theme): void {
  *
  * `theme` is `undefined` while `/api/auth/me` or `/api/settings` is still
  * loading, and `null` when the user is not signed in. Neither should change
- * what is on screen — the script above already chose the best available value.
+ * what is on screen — the head script already chose the best available value.
  */
 export function ThemeSync({ theme }: { theme: Theme | null | undefined }) {
   useEffect(() => {

@@ -12,7 +12,8 @@
 #>
 param([int]$ThresholdMB = 600)
 
-$root = 'C:\projects\smart-network-monitoring-opencode'
+# Derived from this script's location, not hardcoded. See scripts/soak-check.ps1.
+$root = (Split-Path -Parent $PSScriptRoot)
 $log  = Join-Path $root 'doc\soak-checkpoints.log'
 $free = [math]::Round((Get-PSDrive C).Free / 1MB, 0)
 

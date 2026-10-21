@@ -10,8 +10,11 @@ import { getConfig } from '@/lib/config'
  *
  * The key is `ENCRYPTION_KEY`. A 64-hex-char value is used verbatim (the
  * documented production form). Anything else is folded to 32 bytes with
- * SHA-256 so development works without hand-generating a key; production
- * rejects short keys in `lib/config.ts`.
+ * SHA-256, so the value need not be hex — but it must still be at least 32
+ * characters, in every environment: `assertSecretStrength` in `lib/config.ts`
+ * checks that at boot. This used to say the folding was "so development works
+ * without hand-generating a key", which stopped being true the moment weak
+ * dev defaults were removed.
  */
 
 const ALGORITHM = 'aes-256-gcm'

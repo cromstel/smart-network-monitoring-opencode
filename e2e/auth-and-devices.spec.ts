@@ -1,14 +1,19 @@
-import { test, expect, signIn } from './fixtures'
+import { test, expect, signIn, ADMIN } from './fixtures'
 
 /**
  * PRD §7 release criteria: "Playwright covers: login, device list, rename
  * device, view history, configure alert". This file covers the first two.
+ *
+ * The credentials come from `./fixtures` (which reads them from
+ * `lib/config/e2eAccounts.ts`, the same source the seed uses). Writing the
+ * literals here meant a password change produced a login failure rather than a
+ * single edit.
  */
 
 test.describe('authentication and device list', () => {
   test('rejects a wrong password', async ({ page }) => {
     await page.goto('/auth/login')
-    await page.getByLabel('Email').fill('e2e-admin@example.com')
+    await page.getByLabel('Email').fill(ADMIN.email)
     await page.getByLabel('Password').fill('definitely-not-the-password')
     await page.getByRole('button', { name: 'Sign in' }).click()
 
@@ -31,8 +36,8 @@ test.describe('authentication and device list', () => {
     // survives the login detour instead of dumping everyone on the overview.
     await expect(page).toHaveURL((url) => url.searchParams.get('redirect') === '/alerts')
 
-    await page.getByLabel('Email').fill('e2e-admin@example.com')
-    await page.getByLabel('Password').fill('E2e-Admin-Pass-2026')
+    await page.getByLabel('Email').fill(ADMIN.email)
+    await page.getByLabel('Password').fill(ADMIN.password)
     await page.getByRole('button', { name: 'Sign in' }).click()
 
     await expect(page).toHaveURL((url) => url.pathname === '/alerts')
@@ -53,8 +58,8 @@ test.describe('authentication and device list', () => {
     ]) {
       await page.context().clearCookies()
       await page.goto(`/auth/login?redirect=${encodeURIComponent(hostile)}`)
-      await page.getByLabel('Email').fill('e2e-admin@example.com')
-      await page.getByLabel('Password').fill('E2e-Admin-Pass-2026')
+      await page.getByLabel('Email').fill(ADMIN.email)
+      await page.getByLabel('Password').fill(ADMIN.password)
       await page.getByRole('button', { name: 'Sign in' }).click()
 
       // Landed on the overview rather than the injected destination...
@@ -68,8 +73,8 @@ test.describe('authentication and device list', () => {
   test('signs in and lands on the overview', async ({ page }) => {
     await page.context().clearCookies()
     await page.goto('/auth/login')
-    await page.getByLabel('Email').fill('e2e-admin@example.com')
-    await page.getByLabel('Password').fill('E2e-Admin-Pass-2026')
+    await page.getByLabel('Email').fill(ADMIN.email)
+    await page.getByLabel('Password').fill(ADMIN.password)
     await page.getByRole('button', { name: 'Sign in' }).click()
 
     await expect(page).not.toHaveURL((url) => url.pathname === '/auth/login')
@@ -121,8 +126,8 @@ test.describe('authentication and device list', () => {
 
   test('signs out and revokes access', async ({ page }) => {
     await page.goto('/auth/login')
-    await page.getByLabel('Email').fill('e2e-admin@example.com')
-    await page.getByLabel('Password').fill('E2e-Admin-Pass-2026')
+    await page.getByLabel('Email').fill(ADMIN.email)
+    await page.getByLabel('Password').fill(ADMIN.password)
     await page.getByRole('button', { name: 'Sign in' }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible()
 

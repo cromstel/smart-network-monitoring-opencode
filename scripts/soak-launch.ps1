@@ -40,7 +40,11 @@
   -RepoRoot, -OutLog, -ErrLog default to this repository and today's logs.
 #>
 param(
-  [string]$RepoRoot = 'C:\projects\smart-network-monitoring-opencode',
+  # Defaults to the repository this script lives in, derived from its own
+  # location. The absolute path that used to be written here meant the harness
+  # only ran from one machine, and a fresh checkout silently logged to a
+  # directory that did not exist.
+  [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),
   [int]$Minutes = 1440,
   [string]$OutLog = '',
   [string]$ErrLog = '',

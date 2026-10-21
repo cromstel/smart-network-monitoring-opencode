@@ -11,7 +11,10 @@
   opencode server restarts - the failure mode that cancelled both of the
   original opencode background-shell checkpoints on 2026-10-14.
 #>
-$root   = 'C:\projects\smart-network-monitoring-opencode'
+# The repository root is derived from this script's location rather than
+# hardcoded, so the checkpoint runs from any checkout. `$PSScriptRoot` is the
+# directory holding this file (`scripts/`), so its parent is the repository.
+$root   = (Split-Path -Parent $PSScriptRoot)
 $log    = Join-Path $root 'doc\soak-checkpoints.log'
 $lines  = @("==== checkpoint $(Get-Date -Format o) ====")
 

@@ -9,14 +9,8 @@ import { db } from '../lib/db/client'
 import { runMigrations } from '../lib/db/migrator'
 import { hashPassword } from '../lib/utils/crypto'
 import { logger } from '../lib/utils/logger'
+import { e2eAccounts } from '../lib/config/e2eAccounts'
 import type { DeviceType } from '../lib/types'
-
-const ADMIN_EMAIL = 'e2e-admin@example.com'
-const ADMIN_PASSWORD = 'E2e-Admin-Pass-2026'
-const MEMBER_EMAIL = 'e2e-member@example.com'
-const MEMBER_PASSWORD = 'E2e-Member-Pass-2026'
-const VIEWER_EMAIL = 'e2e-viewer@example.com'
-const VIEWER_PASSWORD = 'E2e-Viewer-Pass-2026'
 
 /**
  * One account per role, so the suite can prove the role-aware UI in both
@@ -31,17 +25,11 @@ const VIEWER_PASSWORD = 'E2e-Viewer-Pass-2026'
  * rename) versus changing *global* configuration (settings, router
  * credentials, PayStack) — and without it the only provable distinction is
  * ADMIN versus everyone else, which a single missing `&&` would still pass.
+ *
+ * The values come from `lib/config/e2eAccounts.ts`, which the specs import
+ * too, so the seed cannot write credentials the suite does not know.
  */
-const USERS: Array<{
-  email: string
-  password: string
-  name: string
-  role: 'ADMIN' | 'MEMBER' | 'VIEWER'
-}> = [
-  { email: ADMIN_EMAIL, password: ADMIN_PASSWORD, name: 'E2E Admin', role: 'ADMIN' },
-  { email: MEMBER_EMAIL, password: MEMBER_PASSWORD, name: 'E2E Member', role: 'MEMBER' },
-  { email: VIEWER_EMAIL, password: VIEWER_PASSWORD, name: 'E2E Viewer', role: 'VIEWER' },
-]
+const USERS = e2eAccounts()
 
 const DEVICES: Array<{ mac: string; ip: string; name: string; type: DeviceType }> = [
   { mac: 'A4:83:E7:2C:11:09', ip: '192.168.1.42', name: "Ana's iPhone", type: 'phone' },

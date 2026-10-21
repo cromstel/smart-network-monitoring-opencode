@@ -38,19 +38,24 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
+import { e2eAccount } from '../lib/config/e2eAccounts'
+import { fcpPort, loopbackOrigin } from '../lib/config/ports'
 
 const HOUR = 3_600_000
 
 /** PRD §5. In one place so the gate and the report cannot drift. */
 const TARGET_MS = 2_000
 
-const PORT = Number(process.env.FCP_PORT ?? 3210)
-const BASE = `http://127.0.0.1:${PORT}`
+const PORT = fcpPort()
+const BASE = loopbackOrigin(PORT)
 const LOADS = Number(process.env.FCP_LOADS ?? 12)
 const WARMUP_LOADS = 2
 
-const EMAIL = process.env.FCP_EMAIL ?? 'e2e-admin@example.com'
-const PASSWORD = process.env.FCP_PASSWORD ?? 'E2e-Admin-Pass-2026'
+// The measurement signs in to the E2E-seeded database, so it uses the E2E
+// admin account — imported rather than copied, so a credential change reaches
+// the seed, the specs and this harness together.
+const EMAIL = process.env.FCP_EMAIL ?? e2eAccount('ADMIN').email
+const PASSWORD = process.env.FCP_PASSWORD ?? e2eAccount('ADMIN').password
 
 /** Named in error messages, because "login failed" is not a usable diagnosis. */
 const DB_FILE_LABEL = process.env.DB_FILE ?? '(DB_FILE unset)'

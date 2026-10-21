@@ -20,6 +20,7 @@ import { randomUUID } from 'node:crypto'
 import { db } from '../lib/db/client'
 import { runMigrations } from '../lib/db/migrator'
 import { logger } from '../lib/utils/logger'
+import { RESERVED_DB_NAMES } from '../lib/config/app'
 import type { DeviceType } from '../lib/types'
 
 const HOUR = 3_600_000
@@ -71,8 +72,10 @@ export async function assertDisposableDatabase(): Promise<string> {
       throw new Error('DB_NAME must be set when DB_CLIENT=mysql — refusing to guess.')
     }
     // Same intent as the `dev.db` check below: a name that looks like it could
-    // be the real one is refused outright.
-    if (/^(home_monitor|smart_home_monitor|monitor)$/i.test(name)) {
+    // be the real one is refused outright. The list lives beside the naming
+    // rules in `lib/config/app.ts` so the guard and the rest of the codebase
+    // cannot disagree about which names are reserved.
+    if (RESERVED_DB_NAMES.some((reserved) => reserved.toLowerCase() === name.toLowerCase())) {
       throw new Error(
         `Refusing to build a performance dataset in schema "${name}" — that looks like the live database. Point DB_NAME at a scratch schema.`
       )

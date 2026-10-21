@@ -24,14 +24,33 @@ function createSqlite(): Kysely<DB> {
   })
 }
 
+/**
+ * Reads a required connection variable, failing with a message that names it.
+ *
+ * `mysql2` accepts `undefined` for every one of these and defers the failure to
+ * the first query, where it surfaces as an opaque protocol or authentication
+ * error. Failing here instead says which variable is missing while the process
+ * is still starting.
+ */
+function requiredEnv(name: string): string {
+  const value = process.env[name]?.trim()
+  if (!value) {
+    throw new Error(
+      `Missing required environment variable: ${name}. ` +
+        `It is required when DB_CLIENT=mysql — see .env.example.`
+    )
+  }
+  return value
+}
+
 function createMysql(): Kysely<DB> {
   const { createPool } = require('mysql2') as typeof import('mysql2')
   const pool = createPool({
-    host: process.env.DB_HOST,
+    host: process.env.DB_HOST ?? 'localhost',
     port: Number(process.env.DB_PORT ?? 3306),
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
+    user: requiredEnv('DB_USER'),
+    password: requiredEnv('DB_PASSWORD'),
+    database: requiredEnv('DB_NAME'),
     connectionLimit: 10,
     timezone: 'Z',
     dateStrings: true,

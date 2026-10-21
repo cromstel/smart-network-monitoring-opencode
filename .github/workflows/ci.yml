@@ -16,6 +16,12 @@ env:
   # injected per-environment and are never present in CI logs.
   SESSION_SECRET: ci-session-secret-not-for-production-use-0000
   ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
+  # Required by the app at request time (`appName()` in app/layout.tsx and the
+  # login page). Set here so the CI environment satisfies the same contract a
+  # deployment must; the build itself no longer reads it — `force-dynamic`
+  # means nothing is prerendered, so `/_not-found` and friends are not
+  # generated at build time.
+  APP_NAME: CI Network Monitor
 
 jobs:
   quality:
