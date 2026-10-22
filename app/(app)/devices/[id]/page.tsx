@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -113,8 +113,8 @@ export default function DeviceDetailPage() {
             {device.deviceName || device.macAddress}
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            MAC: {device.macAddress} · IP: {device.ipAddress}
-            {device.hostname && ` · Hostname: ${device.hostname}`}
+            MAC: {device.macAddress} Â· IP: {device.ipAddress}
+            {device.hostname && ` Â· Hostname: ${device.hostname}`}
           </p>
         </div>
         <Dialog open={isEditing} onOpenChange={handleOpenChange}>
@@ -259,33 +259,33 @@ export default function DeviceDetailPage() {
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis
                     dataKey="timestamp"
-                    tick={{ fill: '#94a3b8', fontSize: 12 }}
-                    stroke="#334155"
+                    tick={{ fill: 'var(--chart-tick)', fontSize: 12 }}
+                    stroke="var(--chart-grid)"
                     tickCount={6}
                   />
                   <YAxis
-                    tick={{ fill: '#94a3b8', fontSize: 12 }}
-                    stroke="#334155"
+                    tick={{ fill: 'var(--chart-tick)', fontSize: 12 }}
+                    stroke="var(--chart-grid)"
                     tickFormatter={(value) => `${value} Mbps`}
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#1e293b',
-                      border: '1px solid #334155',
+                      backgroundColor: 'var(--chart-tooltip-bg)',
+                      border: '1px solid var(--chart-grid)',
                       borderRadius: '8px',
                     }}
-                    labelStyle={{ color: '#f1f5f9' }}
-                    itemStyle={{ color: '#f1f5f9' }}
+                    labelStyle={{ color: 'var(--chart-tooltip-fg)' }}
+                    itemStyle={{ color: 'var(--chart-tooltip-fg)' }}
                     formatter={(value: any) => [`${(value ?? 0).toFixed(2)} Mbps`, '']}
                   />
                   <Legend />
                   <Line
                     type="monotone"
                     dataKey="download"
-                    stroke="#3b82f6"
+                    stroke="var(--chart-download)"
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 6 }}
@@ -294,7 +294,7 @@ export default function DeviceDetailPage() {
                   <Line
                     type="monotone"
                     dataKey="upload"
-                    stroke="#22c55e"
+                    stroke="var(--chart-upload)"
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 6 }}

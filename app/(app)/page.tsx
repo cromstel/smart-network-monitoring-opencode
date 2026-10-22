@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -142,22 +142,22 @@ export default function OverviewPage() {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={[{ name: 'Download', value: peak?.peakDownloadMbps ?? 0 }, { name: 'Upload', value: peak?.peakUploadMbps ?? 0 }]}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 12 }} stroke="#334155" />
-                <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} stroke="#334155" tickFormatter={(v) => `${v} Mbps`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 12 }} stroke="var(--chart-grid)" />
+                <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 12 }} stroke="var(--chart-grid)" tickFormatter={(v) => `${v} Mbps`} />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#1e293b',
-                    border: '1px solid #334155',
+                    backgroundColor: 'var(--chart-tooltip-bg)',
+                    border: '1px solid var(--chart-grid)',
                     borderRadius: '8px',
                   }}
-                  labelStyle={{ color: '#f1f5f9' }}
-                  itemStyle={{ color: '#f1f5f9' }}
+                  labelStyle={{ color: 'var(--chart-tooltip-fg)' }}
+                  itemStyle={{ color: 'var(--chart-tooltip-fg)' }}
                   formatter={(v: any) => [`${(v ?? 0).toFixed(2)} Mbps`, '']}
                 />
                 <Legend />
-                <Bar dataKey="value" fill="#3b82f6" name="Download" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="value" fill="#22c55e" name="Upload" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="value" fill="var(--chart-download)" name="Download" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="value" fill="var(--chart-upload)" name="Upload" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -180,8 +180,8 @@ export default function OverviewPage() {
                   </div>
                   <div className="flex items-center gap-4 text-right">
                     <div className="text-xs text-slate-400">
-                      <span className="text-blue-400">↓ {consumer.downloadMbps.toFixed(1)}</span>
-                      <span className="mx-2 text-amber-400">↑ {consumer.uploadMbps.toFixed(1)}</span>
+                      <span className="text-blue-400">â†“ {consumer.downloadMbps.toFixed(1)}</span>
+                      <span className="mx-2 text-amber-400">â†‘ {consumer.uploadMbps.toFixed(1)}</span>
                     </div>
                     <div className="text-slate-100 font-medium text-sm">
                       {consumer.totalMbps.toFixed(1)} Mbps
@@ -201,22 +201,22 @@ export default function OverviewPage() {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={[{ name: 'Download', value: totals.totalDownloadMbps }, { name: 'Upload', value: totals.totalUploadMbps }]}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 12 }} stroke="#334155" />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} stroke="#334155" tickFormatter={(v) => `${v} Mbps`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 12 }} stroke="var(--chart-grid)" />
+              <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 12 }} stroke="var(--chart-grid)" tickFormatter={(v) => `${v} Mbps`} />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #334155',
+                  backgroundColor: 'var(--chart-tooltip-bg)',
+                  border: '1px solid var(--chart-grid)',
                   borderRadius: '8px',
                 }}
-                labelStyle={{ color: '#f1f5f9' }}
-                itemStyle={{ color: '#f1f5f9' }}
+                labelStyle={{ color: 'var(--chart-tooltip-fg)' }}
+                itemStyle={{ color: 'var(--chart-tooltip-fg)' }}
                 formatter={(v: any) => [`${(v ?? 0).toFixed(2)} Mbps`, '']}
               />
               <Legend />
-              <Bar dataKey="value" fill="#3b82f6" name="Download" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="value" fill="#22c55e" name="Upload" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="value" fill="var(--chart-download)" name="Download" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="value" fill="var(--chart-upload)" name="Upload" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

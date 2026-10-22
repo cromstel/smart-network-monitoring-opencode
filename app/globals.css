@@ -12,10 +12,69 @@
  *
  * The `.light` class is applied by `ThemeScript` before first paint and
  * reconciled by `ThemeSync` once the stored setting is known.
+ *
+ * ## Every variant of a utility has to be listed
+ *
+ * The overrides below originally covered only the *opaque* class names:
+ * `bg-slate-800`, `bg-slate-900`, `bg-slate-950`. The components do not use
+ * those — they use the translucent variants `bg-slate-800/50`,
+ * `bg-slate-950/50` and `bg-slate-900/50`, which are *different classes* and
+ * matched none of the rules. In light mode they kept their dark colours:
+ *
+ *   - the sign-in form rendered dark grey blocks (`bg-slate-800/50` over a
+ *     white page) with the typed text in `text-slate-100` — which the light
+ *     palette *had* overridden to near-black — so the characters were
+ *     invisible against the dark field they sat in;
+ *   - every card (`bg-slate-950/50`) stayed dark on a white page;
+ *   - the device table header (`bg-slate-900/50`) stayed dark.
+ *
+ * So the rule this file follows is: a utility is only themed once *every*
+ * opacity variant used anywhere in the tree is themed with it. The variants
+ * are listed explicitly below, including the coloured status badges, whose
+ * `text-*-300` labels were unreadable on their own tinted backgrounds.
  */
 
 .light {
   color-scheme: light;
+}
+
+/*
+ * The dark palette, as variables for the same reason.
+ *
+ * Declared *before* the `.light` block on purpose. `:root` and `.light` both
+ * match <html> and have the same specificity, so the later one wins — and the
+ * light values must be the later ones. With the order reversed the dark
+ * values silently overrode the light ones on every page.
+ */
+:root {
+  --chart-download: #3b82f6; /* blue-500 */
+  --chart-upload: #22c55e; /* green-500 */
+  --chart-grid: #334155; /* slate-700 */
+  --chart-tick: #94a3b8; /* slate-400 */
+  --chart-tooltip-bg: #1e293b; /* slate-800 */
+  --chart-tooltip-fg: #f1f5f9; /* slate-100 */
+}
+
+/*
+ * The light palette for the charts.
+ *
+ * The charts are drawn with explicit hex values, and those were the
+ * dark-mode ones. On a light page the upload series (`#22c55e`) had a
+ * contrast ratio of 2.28 against white — the legend label it colours was
+ * effectively unreadable.
+ *
+ * These are variables rather than more `.light` overrides because they are
+ * *values*, not class names: Recharts passes them to SVG attributes, and a
+ * CSS variable resolves in a presentation attribute (verified) while a class
+ * selector cannot reach an inline attribute value.
+ */
+.light {
+  --chart-download: #1d4ed8; /* blue-700 */
+  --chart-upload: #15803d; /* green-700 */
+  --chart-grid: #e2e8f0; /* slate-200 */
+  --chart-tick: #64748b; /* slate-500 */
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-fg: #0f172a; /* slate-900 */
 }
 
 .light body {
@@ -40,6 +99,40 @@
   background-color: rgb(226 232 240); /* slate-200 */
 }
 
+/*
+ * The translucent surfaces the components actually use.
+ *
+ * Cards sit on the slate-50 page, so a card is white and the page reads as
+ * the background. Inputs are white too, with the slate-300 border above
+ * giving them their edge — a slate-100 input on a slate-50 page has almost
+ * no separation, and the input's own `text-slate-100` (darkened to
+ * slate-900 here) needs a light field to be readable in.
+ */
+.light .bg-slate-950\/50 {
+  background-color: rgb(255 255 255); /* cards and panels */
+}
+
+.light .bg-slate-900\/50 {
+  background-color: rgb(241 245 249); /* slate-100 — table headers */
+}
+
+.light .bg-slate-800\/50 {
+  background-color: rgb(255 255 255); /* inputs, select triggers, icon chips */
+}
+
+.light .bg-slate-800\/40 {
+  background-color: rgb(241 245 249); /* slate-100 — loading placeholder */
+}
+
+/*
+ * Loading placeholders are the one place a white surface is wrong: a white
+ * bar on a white card is invisible. They are marked with `animate-pulse`,
+ * which is used for nothing else in the tree, so it is the reliable hook.
+ */
+.light .animate-pulse {
+  background-color: rgb(226 232 240); /* slate-200 */
+}
+
 /* Text */
 .light .text-slate-100 {
   color: rgb(15 23 42);
@@ -61,6 +154,61 @@
   color: rgb(100 116 139); /* slate-500 */
 }
 
+/*
+ * The coloured labels.
+ *
+ * `text-*-300` and `text-*-400` are the dark-mode choices for a near-black
+ * background: on white they are too light to read. Each one drops two or
+ * three steps so it keeps its hue and gains contrast.
+ */
+.light .text-blue-300 {
+  color: rgb(29 78 216); /* blue-700 */
+}
+
+.light .text-blue-400 {
+  color: rgb(37 99 235); /* blue-600 */
+}
+
+.light .text-blue-500 {
+  color: rgb(37 99 235); /* blue-600 */
+}
+
+.light .text-green-400 {
+  color: rgb(21 128 61); /* green-700 */
+}
+
+.light .text-emerald-400 {
+  color: rgb(4 120 87); /* emerald-700 */
+}
+
+.light .text-emerald-500 {
+  color: rgb(4 120 87); /* emerald-700 */
+}
+
+.light .text-amber-300 {
+  color: rgb(180 83 9); /* amber-700 */
+}
+
+.light .text-amber-400 {
+  color: rgb(217 119 6); /* amber-600 */
+}
+
+.light .text-amber-500 {
+  color: rgb(217 119 6); /* amber-600 */
+}
+
+.light .text-red-300 {
+  color: rgb(185 28 28); /* red-700 */
+}
+
+.light .text-red-400 {
+  color: rgb(220 38 38); /* red-600 */
+}
+
+.light .text-red-500 {
+  color: rgb(220 38 38); /* red-600 */
+}
+
 /* Borders */
 .light .border-slate-700 {
   border-color: rgb(203 213 225); /* slate-300 */
@@ -70,6 +218,36 @@
   border-color: rgb(226 232 240); /* slate-200 */
 }
 
+.light .border-slate-800\/50 {
+  border-color: rgb(226 232 240); /* slate-200 — row separators */
+}
+
+/* Error panels: red-950 is a dark-mode surface, and its label is red-300. */
+.light .bg-red-950\/40 {
+  background-color: rgb(254 226 226); /* red-100 */
+}
+
+.light .border-red-900 {
+  border-color: rgb(252 165 165); /* red-300 */
+}
+
+/* Status badges keep their tint, strengthened for a light page. */
+.light .bg-green-500\/20 {
+  background-color: rgb(220 252 231); /* green-100 */
+}
+
+.light .bg-blue-500\/15 {
+  background-color: rgb(219 234 254); /* blue-100 */
+}
+
+.light .bg-amber-500\/15 {
+  background-color: rgb(254 243 199); /* amber-100 */
+}
+
+.light .bg-red-500\/15 {
+  background-color: rgb(254 226 226); /* red-100 */
+}
+
 /* A hover that is visible on a light background */
 .light .hover\:bg-slate-800:hover {
   background-color: rgb(241 245 249);
@@ -77,4 +255,16 @@
 
 .light .hover\:bg-slate-900:hover {
   background-color: rgb(241 245 249);
+}
+
+.light .hover\:bg-slate-800\/50:hover {
+  background-color: rgb(241 245 249);
+}
+
+.light .hover\:text-blue-300:hover {
+  color: rgb(29 78 216); /* blue-700 */
+}
+
+.light .hover\:text-red-400:hover {
+  color: rgb(220 38 38); /* red-600 */
 }

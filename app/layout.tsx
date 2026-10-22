@@ -49,7 +49,25 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    // `suppressHydrationWarning` is required, not cosmetic.
+    //
+    // `ThemeScript` runs before first paint and adds `class="light"` to <html>
+    // when the saved theme is light. React then hydrates <html> against the
+    // server HTML, which was rendered without that class, and reports a
+    // mismatch — "A tree hydrated but some attributes of the server rendered
+    // HTML didn't match the client properties" — with the offending attribute
+    // shown as `className="light"`.
+    //
+    // It only ever appeared in light mode: the script toggles the class off
+    // in dark mode, so the server and client attributes agreed and nothing
+    // was reported. That is why it survived the move of the script out of the
+    // client tree — the class on <html> is the part React compares, not the
+    // script's location.
+    //
+    // The flag tells React to leave this one element's attributes alone. The
+    // class is applied by a script that runs before React exists, so the
+    // client value is the correct one and there is nothing to patch.
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* F-53: applies the remembered palette before first paint. */}
         <ThemeScript />
