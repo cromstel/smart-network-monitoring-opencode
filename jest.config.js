@@ -20,6 +20,16 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testMatch: ['<rootDir>/lib/**/__tests__/**/*.test.ts', '<rootDir>/**/*.test.tsx'],
   testPathIgnorePatterns: ['/node_modules/', '/.next/'],
+  // The cache lives inside the project so `npm run test:clean` can remove it
+  // with the other test artefacts. Jest's default is a directory under the
+  // system temp folder, which no cleanup rule can reach.
+  cacheDirectory: '<rootDir>/.jest-cache',
+  // The test sources are untracked and are purged from the working tree once
+  // testing is done (see .gitignore and scripts/clean-tests.mjs). A run with
+  // no test files present is the expected state afterwards, not a failure —
+  // without this, `npm test` exits 1 on "no tests found" and looks like a
+  // broken suite rather than a clean machine.
+  passWithNoTests: true,
   // The v8 provider is used instead of the default babel/istanbul one because
   // on Windows the latter records untested files under keys like
   // `lib/services/file:\C:\...\lib/services/alertService.ts`, which then makes

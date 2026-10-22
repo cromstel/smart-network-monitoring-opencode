@@ -15,3 +15,11 @@ doc
 !doc/README.md
 Dockerfile
 .dockerignore
+
+# Test sources never enter the build context. The image ships the product,
+# not its test suite, and the suite is untracked anyway (see .gitignore).
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__

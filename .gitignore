@@ -25,6 +25,26 @@ coverage/
 playwright-report/
 test-results/
 
+# Test sources — deliberately untracked.
+#
+# The rule is that test code must never reach the remote repository or a
+# production image: it is not part of the shipped product, it inflates every
+# clone and every container layer, and it is the one part of the tree that
+# documents internals rather than behaviour.
+#
+# The files stay on the developer's disk so the suite can still be run
+# locally; they are simply not versioned and not shipped. `npm run
+# test:purge` deletes them from the working tree once testing is done, and
+# `npm run test:clean` removes the artefacts a test run leaves behind.
+#
+# `__tests__/` is matched by name, so a directory of that name anywhere in the
+# tree is ignored, not just the one under lib/.
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__/
+
 # logs
 *.log
 npm-debug.log*

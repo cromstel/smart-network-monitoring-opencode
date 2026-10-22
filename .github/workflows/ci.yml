@@ -52,6 +52,13 @@ jobs:
   unit:
     name: Unit tests (SQLite)
     runs-on: ubuntu-latest
+    # The test sources are deliberately untracked (see .gitignore): they are
+    # not part of the shipped product and must not live in the remote
+    # repository. That means CI has nothing to run when the tree carries no
+    # test files, so the job skips itself instead of failing on "no tests
+    # found". The guard is a file check rather than a hard delete: if someone
+    # re-adds a suite, the job wakes up by itself.
+    if: ${{ hashFiles('**/*.test.ts') != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -64,7 +71,10 @@ jobs:
         run: npm ci
 
       - name: Test with coverage
-        run: npm run test:coverage
+        # `npx jest`, not `npm run test:coverage`: the npm script has a
+        # post-hook that deletes the coverage output, and the artifact upload
+        # below needs that directory to still exist.
+        run: npx jest --coverage
         env:
           SESSION_SECRET: ci-session-secret-not-for-production-use-0000
           ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
@@ -80,6 +90,9 @@ jobs:
   database:
     name: Unit tests (${{ matrix.label }})
     runs-on: ubuntu-latest
+    # Same guard as the unit job above: no test sources in the tree means no
+    # suite to run against either engine.
+    if: ${{ hashFiles('**/*.test.ts') != '' }}
 
     # Both engines, neither optional. MariaDB 12.3 is what the local
     # development server runs; MySQL 8.4 is what the deployed container stack
@@ -341,6 +354,10 @@ jobs:
   e2e:
     name: End-to-end (Playwright)
     runs-on: ubuntu-latest
+    # The Playwright specs are untracked with the rest of the test sources, so
+    # the spec run below is guarded. The job itself still runs: the FCP
+    # measurement in it is a perf harness (scripts/fcp.ts), not a test file,
+    # and PRD §5 requires it.
     steps:
       - uses: actions/checkout@v4
 
@@ -394,6 +411,10 @@ jobs:
           retention-days: 7
 
       - name: Run E2E
+        # No specs in the tree means there is nothing to run — the step is
+        # skipped rather than failed, because the absence of the sources is the
+        # intended state, not a regression.
+        if: ${{ hashFiles('**/*.spec.ts') != '' }}
         run: npm run test:e2e
         env:
           CI: 'true'
@@ -401,7 +422,7 @@ jobs:
           ENCRYPTION_KEY: e2e-encryption-key-not-for-production-0000000000
 
       - name: Upload Playwright report
-        if: always()
+        if: always() && hashFiles('**/*.spec.ts') != ''
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
