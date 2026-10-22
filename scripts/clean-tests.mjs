@@ -13,10 +13,11 @@
  * demand, so removing them is free.
  *
  * Sources are the test files themselves. They are untracked (see .gitignore),
- * which means git cannot restore them — deleting them is irreversible except
- * through a backup. That is why sources are a separate, explicit flag and
- * not part of the default run: `npm run test:clean` is safe to call after
- * every run, `npm run test:purge` is a deliberate act.
+ * which means the working tree no longer has them - but they are still in the
+ * git history, so an earlier version can be restored with
+ * `git show <commit>:<path> > <path>`. That is why sources are a separate,
+ * explicit flag and not part of the default run: `npm run test:clean` is safe
+ * to call after every run, `npm run test:purge` is a deliberate act.
  *
  * Nothing outside the project directory is touched, and `data/dev.db` — the
  * live development database with the user's accounts and scan history — is
@@ -135,11 +136,12 @@ if (existsSync(dataDir)) {
 }
 
 if (purgeSources) {
-  for (const source of findTestSources()) {
+  const sources = findTestSources()
+  for (const source of sources) {
     freed += sizeOf(source)
     rm(source)
   }
-  removed.push('test sources')
+  removed.push(`${sources.length} test source file(s)`)
 }
 
 const mb = (freed / 1024 / 1024).toFixed(1)
@@ -150,6 +152,9 @@ console.log(
 )
 if (purgeSources) {
   console.log(
-    'Test sources deleted from the working tree. They were untracked, so git cannot restore them.'
+    'Test sources deleted from the working tree. They are not in the working\n' +
+      'tree any more, but they are still in the git history, so an earlier\n' +
+      'version can be restored with:\n' +
+      '  git show <commit>:<path> > <path>'
   )
 }
