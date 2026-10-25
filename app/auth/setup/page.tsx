@@ -87,6 +87,23 @@ export default function SetupPage() {
 
         {status === 'needed' && (
           <form onSubmit={onSubmit} className="mt-8 space-y-4">
+            {/* App logo — inline SVG */}
+            <div className="flex justify-center mb-2">
+              <svg
+                width="48"
+                height="48"
+                viewBox="0 0 48 48"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-label="Network Monitor logo"
+                className="drop-shadow-sm"
+              >
+                <rect x="6" y="6" width="36" height="36" rx="10" fill="#3b82f6" opacity="0.15" />
+                <rect x="6" y="6" width="36" height="36" rx="10" stroke="#3b82f6" strokeWidth="2.5" />
+                <path d="M14 24 L24 14 L34 24" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="24" cy="26" r="3" fill="#3b82f6" />
+              </svg>
+            </div>
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-slate-300">
                 Name <span className="text-slate-500">(optional)</span>

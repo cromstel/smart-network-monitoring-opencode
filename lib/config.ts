@@ -7,8 +7,8 @@ const booleanFromEnv = z
   .transform((v) => v === undefined ? undefined : v === 'true')
 
 const envSchema = z.object({
-  DB_CLIENT: z.enum(['sqlite', 'mysql']).default('sqlite'),
-  DB_FILE: z.string().default('./data/dev.db'),
+  DB_CLIENT: z.enum(['mysql']).default('mysql'),
+  DB_FILE: z.string().optional(),
   DB_HOST: z.string().default('localhost'),
   // The MySQL default port. Overridable, and `mysql` itself is a fixed protocol
   // fact rather than a project choice, so one documented default is correct.
@@ -17,8 +17,7 @@ const envSchema = z.object({
   // are configuration the operator owns; a built-in `home_monitor` / `monitor`
   // pair meant a deployment that forgot them silently connected as a user
   // somebody else may have created, to the wrong database. Both are optional in
-  // the schema because SQLite ignores them entirely — `lib/db/client.ts`
-  // requires them when DB_CLIENT=mysql.
+  // Connection identity is required — MySQL only, SQLite removed.
   DB_NAME: z.string().optional(),
   DB_USER: z.string().optional(),
   // Never defaulted to a usable value. An empty default is the safe one, and
@@ -157,7 +156,7 @@ export function loadConfig(
   if (!parsed.success) {
     const issues = parsed.error.issues
     const missing = issues
-      .filter((i) => i.code === 'invalid_type' && i.received === 'undefined')
+      .filter((i) => i.code === 'invalid_type' && i.input === undefined)
       .map((i) => i.path.join('.'))
     const detail = issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')
     const prefix = missing.length

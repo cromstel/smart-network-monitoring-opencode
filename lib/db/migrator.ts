@@ -66,6 +66,7 @@ import * as Migration004AlertsNotifications from './migrations/004_alerts_notifi
 import * as Migration005SettingsRouter from './migrations/005_settings_router'
 import * as Migration006NetworkMetrics from './migrations/006_network_metrics'
 import * as Migration007PaystackBilling from './migrations/007_paystack_billing'
+import * as Migration008DeviceBlocksEmailVuln from './migrations/008_device_blocks_email_vuln'
 
 export const migrations: Record<string, { up: (db: Kysely<DB>) => Promise<void>; down: (db: Kysely<DB>) => Promise<void> }> = {
   Migration001Devices,
@@ -75,6 +76,7 @@ export const migrations: Record<string, { up: (db: Kysely<DB>) => Promise<void>;
   Migration005SettingsRouter,
   Migration006NetworkMetrics,
   Migration007PaystackBilling,
+  Migration008DeviceBlocksEmailVuln,
 }
 
 export function createMigrator(db: Kysely<DB>): Migrator {

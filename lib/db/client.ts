@@ -1,28 +1,8 @@
-import { Kysely, MysqlDialect, SqliteDialect } from 'kysely'
+import { Kysely, MysqlDialect } from 'kysely'
 import type { MysqlPool } from 'kysely'
-import { mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
 import type { DB } from './schema'
 
 const g = globalThis as unknown as { __db?: Kysely<DB> }
-
-function createSqlite(): Kysely<DB> {
-  const Database = require('better-sqlite3') as typeof import('better-sqlite3')
-  const file = process.env.DB_FILE ?? './data/dev.db'
-  if (file !== ':memory:') {
-    mkdirSync(dirname(file), { recursive: true })
-  }
-  const instance = new Database(file)
-  // SQLite ignores foreign keys unless this pragma is set on every connection,
-  // otherwise cascade deletes silently stop working in development.
-  instance.pragma('foreign_keys = ON')
-  // BIGINT columns past 2^53 must come back as BigInt, never a rounded double
-  // (AUDIT.md A-05). String() them at the mapper edge.
-  instance.defaultSafeIntegers(true)
-  return new Kysely<DB>({
-    dialect: new SqliteDialect({ database: instance }),
-  })
-}
 
 /**
  * Reads a required connection variable, failing with a message that names it.
@@ -77,7 +57,8 @@ function createMysql(): Kysely<DB> {
  * until you know the wire protocol is shared.
  */
 function create(): Kysely<DB> {
-  return process.env.DB_CLIENT === 'mysql' ? createMysql() : createSqlite()
+  // SQLite removed — only MySQL (MariaDB via mysql2 dialect) is supported.
+  return createMysql()
 }
 
 /// Exactly one pool per process. The globalThis cache is what stops Next.js

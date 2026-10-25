@@ -77,8 +77,9 @@ export function appName(): string {
  * one from the other would produce a schema called `home_network_monitor` for a
  * database the operator already named `home_monitor`, so the operator names it.
  *
- * Required only when a MySQL client is in use. SQLite stores its whole database
- * in one file (`DB_FILE`) and has no schema name, which is why this is not part
+ * Required: MySQL only. SQLite is no longer supported.
+ * in one file (`DB_FILE`) and has no schema name. SQLite is removed: only
+ * MySQL is supported, so `DB_NAME` is always required.
  * of `loadConfig`'s schema — that would make every SQLite deployment set a
  * variable nothing reads.
  */

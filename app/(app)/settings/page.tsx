@@ -500,7 +500,7 @@ export default function SettingsPage() {
                 autoComplete="new-password"
                 value={paystackForm.secret}
                 onChange={(e) => setPaystackForm((f) => ({ ...f, secret: e.target.value }))}
-                placeholder="sk_test_…"
+                placeholder="Enter PayStack secret key"
                 className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
               />
             </label>

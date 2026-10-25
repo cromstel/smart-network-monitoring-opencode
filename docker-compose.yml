@@ -1,5 +1,5 @@
 ﻿# Local MariaDB for development, and the same engine the CI test leg uses.
-# Production installs normally use SQLite.
+# Only MySQL (MariaDB) is supported — SQLite has been removed.
 #
 # MariaDB, not MySQL. The deployed database is MariaDB 12.3, and the two
 # engines differ in ways this application has already been bitten by: MariaDB
@@ -11,7 +11,7 @@
 # DB_CLIENT stays `mysql` everywhere below. That is the application's name for
 # the *driver and dialect* (Kysely's MysqlDialect via mysql2), not the name of
 # the server. MariaDB speaks the same wire protocol and is reached through it.
-# `lib/config.ts` validates DB_CLIENT as 'sqlite' | 'mysql' for that reason.
+# `lib/config.ts` validates DB_CLIENT as 'mysql' — SQLite removed.
 #
 # The credentials are required, not defaulted. This file previously carried
 # ${DB_PASSWORD:-monitor}, so a container started without a .env would come up
@@ -51,7 +51,7 @@ services:
       start_period: 30s
 
   # The application. Start it only when you intend to run against MariaDB;
-  # for a plain SQLite install run `docker compose up -d app` after copying
+  # The app service requires MariaDB; it must not start without it.
   # .env.example to .env.
   app:
     build:
@@ -62,7 +62,7 @@ services:
         # variable (`PORT`) so the two cannot disagree â€” a build arg of 8080
         # with a mapping of 9000 would publish a port nothing is listening on.
         PORT: ${PORT:-9000}
-        # The SQLite filename inside the volume. Derived from `APP_NAME` so a
+        # Not used: SQLite removed. Only MySQL (MariaDB via mysql2) is supported.
         # white-labelled deployment gets its own file instead of writing into
         # one named after this product. Path separators and spaces are stripped
         # because this becomes a filename, not a display string.

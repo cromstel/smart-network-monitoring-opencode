@@ -1,0 +1,21 @@
+# Weekly vulnerability scan + auto-fix (system cron — default)
+#
+# How to install (one-time):
+#
+#   crontab -e
+#
+# Add this line (runs every Monday at 02:00 server time):
+#
+#   0 2 * * 1 cd /full/path/to/project && /usr/bin/npm run weekly-audit >> /full/path/to/project/logs/cron-weekly.log 2>&1
+#
+# Replace `/full/path/to/project` with the real working directory.
+# The script `scripts/weekly-audit-fix.mjs` writes audit results and
+# safe fixes to `logs/weekly-audit.log`; it exits 0 on clean/fixed,
+# 1 if unfixable advisories remain (operator should review), 2 on
+# audit error.
+#
+# To test manually (before enabling cron):
+#
+#   npm run weekly-audit
+#
+# Then verify `npm audit` reports `found 0 vulnerabilities`.

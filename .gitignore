@@ -20,6 +20,9 @@ data/
 *.db
 *.db-journal
 
+# opencode agents & files
+.opencode/
+
 # testing
 coverage/
 playwright-report/

@@ -15,6 +15,14 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
       <div className="w-full max-w-sm">
+        <div className="flex justify-center mb-4">
+          <svg width="36" height="36" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Network Monitor logo" className="drop-shadow-sm">
+            <rect x="6" y="6" width="36" height="36" rx="10" fill="#3b82f6" opacity="0.15" />
+            <rect x="6" y="6" width="36" height="36" rx="10" stroke="#3b82f6" strokeWidth="2.5" />
+            <path d="M14 24 L24 14 L34 24" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="24" cy="26" r="3" fill="#3b82f6" />
+          </svg>
+        </div>
         <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
         <p className="mt-1 text-sm text-slate-400">{appName()}</p>
 

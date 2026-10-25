@@ -27,6 +27,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "hooks:install": "node scripts/git-hooks/install.mjs",
+    "weekly-audit": "node scripts/weekly-audit-fix.mjs",
     "test:all": "npm run type-check && npm run test:coverage && npm run build",
     "perf:dataset": "cross-env DB_FILE=./data/perf.db ts-node -r tsconfig-paths/register --project tsconfig.node.json scripts/perfDataset.ts",
     "perf": "cross-env DB_FILE=./data/perf.db ts-node -r tsconfig-paths/register --project tsconfig.node.json scripts/perf.ts",
@@ -51,16 +52,17 @@
     "mysql2": "^3.24.4",
     "next": "^16.4.2",
     "node-cron": "^4.2.1",
+    "nodemailer": "^10.2.1",
     "oui-data": "^1.2.0",
     "pino": "^9.5.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "recharts": "^3.10.1",
     "tailwind-merge": "^3.7.0",
-    "zod": "^3.23.8"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.1",
     "@testing-library/jest-dom": "^6.4.0",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.0",

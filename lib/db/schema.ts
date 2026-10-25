@@ -26,6 +26,7 @@ export interface DevicesTable {
   is_ignored: Generated<number>
   total_connection_time: Generated<SqlBigInt>
   category_id: string | null
+  static_ip: string | null
   first_seen: string
   last_seen: string
   created_at: string
@@ -179,6 +180,38 @@ export interface NetworkScanHistoryTable {
   created_at: string
 }
 
+export interface DeviceBlocksTable {
+  id: string
+  device_id: string
+  website_app: string
+  is_active: Generated<number>
+  created_by: string
+  created_at: string
+}
+
+export interface EmailProvidersTable {
+  id: string
+  provider_name: string
+  smtp_host: string
+  smtp_port: number
+  smtp_user: string
+  smtp_pass: string
+  is_default: Generated<number>
+  created_at: string
+}
+
+export interface VulnerabilityAlertsTable {
+  id: string
+  user_id: string
+  device_id: string | null
+  vulnerability_type: string
+  severity: string
+  message: string
+  is_read: Generated<number>
+  read_at: string | null
+  created_at: string
+}
+
 export interface DB {
   device_categories: DeviceCategoriesTable
   devices: DevicesTable
@@ -193,4 +226,7 @@ export interface DB {
   router_config: RouterConfigTable
   network_metrics: NetworkMetricsTable
   network_scan_history: NetworkScanHistoryTable
+  device_blocks: DeviceBlocksTable
+  email_providers: EmailProvidersTable
+  vulnerability_alerts: VulnerabilityAlertsTable
 }

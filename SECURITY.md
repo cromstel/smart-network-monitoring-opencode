@@ -28,10 +28,10 @@ a new version is available rather than waiting for a maintenance window.
 
 ## Authentication & Authorization
 
-- All API endpoints require JWT-based authentication
+- All API endpoints require JWT-based authentication (session cookie `session`, `httpOnly: true`, `SameSite: lax` — never `localStorage`)
 - Admin users have elevated privileges for system configuration
-- Session tokens expire after 24 hours of inactivity
-- Role-based access control (RBAC) restricts feature access
+- Session tokens expire after 7 days (`maxAge: 7*24*60*60`) and are revoked server-side on logout (`POST /api/auth/logout` deletes DB session + clears cookie with `maxAge:0`)
+- Role-based access control (RBAC) restricts feature access (`/api/auth/me` checks `VIEWER`/`MEMBER`/`ADMIN`)
 
 ## Data Protection
 
@@ -42,10 +42,11 @@ a new version is available rather than waiting for a maintenance window.
 
 ## API Security
 
-- Rate limiting applied to all endpoints (100 requests/minute per IP)
-- Input validation and sanitization for all user inputs
-- CORS policies restrict allowed origins
-- Secrets are never logged or exposed in responses
+- Rate limiting applied per endpoint and per IP (`createRateLimiter` in-memory, `x-forwarded-for` aware): login (`LOGIN_RATE_LIMIT_MAX`, default 5/15min), setup (5/60min). Admin endpoints still need limiters (pending).
+- Input validation via Zod (`loginSchema`, `setupSchema`) before any DB write; `safeParse` used, flat-copied error details never expose internal state
+- CSP (`Content-Security-Policy`) and security headers applied globally via `next.config.ts` (`headers()` on `/:path*`): `default-src 'self'`, `script-src 'self'`, `style-src 'self' 'unsafe-inline'`, `img-src 'self' data:`, `frame-ancestors 'none'`, `object-src 'none'`; plus `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`
+- Auth form errors are generic (`"Invalid email or password"`) — never "email not found" / "invalid password" (prevents user enumeration)
+- Autofill/demo-fill attributes removed from auth forms (`grep` zero hits); setup uses `autoComplete="new-password"`; login uses standard `username`/`current-password`
 
 ## Required Configuration
 
@@ -80,7 +81,16 @@ travel from a developer's machine to staging to the production host, the
 presence and length checks apply in **every** environment. The failure is raised
 where the placeholder was written, not at the deploy that inherits it.
 
-## PayStack Integration
+## Authentication Session Storage (critical change — documented 2026-10-25)
+
+- Token is stored in an `httpOnly` cookie (`cookieStore.get('session')`) — never `localStorage`. The login POST (`app/api/auth/login/route.ts`) sets it; the logout POST (`app/api/auth/logout/route.ts`) reads from cookie, deletes DB session, then clears cookie (`maxAge: 0`, `httpOnly: true`, `sameSite: 'lax'`).
+- `lib/api/auth.ts` (`getAuthContext` / `requireAuth`) validates session token against `validateSession` (hash comparison) before returning user context.
+- No `localStorage.setItem('token', ...)` references exist in auth flow (verified by `grep`).
+
+## Paid / Sensitive Sections
+
+- Audit-plan: `.opencode/plans/plan-admin-features-2026-10-25.md` (done/pending checklist + API scope). Previous audit-plan `audit-and-resolve-all-gaps-2026-10-24.md` referenced but not present on disk; can be regenerated from checklist.
+- Secret rotation: `DB_PASSWORD`, `SESSION_SECRET`, `ADMIN_PASSWORD`, `VIEWER_PASSWORD` in `.env.local` remain unrotated (pending deploy blocker — must rotate before any production deploy).
 
 - PayStack API credentials are stored in environment variables only
 - Secret keys are rotated quarterly
