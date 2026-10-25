@@ -48,8 +48,9 @@ function portFromEnv(key: string, fallback: number): number {
 /**
  * The application's own port (`next start` / `next dev`).
  *
- * 9090, not the framework's 9090, and overridable by `PORT`. Read per call so
- * a `cross-env PORT=...` preceding a script wins over the parent process.
+ * 9090, not the framework's default of 3000, and overridable by `PORT`. Read
+ * per call so a `cross-env PORT=...` preceding a script wins over the parent
+ * process.
  */
 export function appPort(): number {
   return portFromEnv('PORT', 9090)

@@ -60,8 +60,8 @@ services:
       args:
         # The image listens on this port; the mapping below publishes it. One
         # variable (`PORT`) so the two cannot disagree â€” a build arg of 8080
-        # with a mapping of 9000 would publish a port nothing is listening on.
-        PORT: ${PORT:-9000}
+        # with a mapping of 9090 would publish a port nothing is listening on.
+        PORT: ${PORT:-9090}
         # Not used: SQLite removed. Only MySQL (MariaDB via mysql2) is supported.
         # white-labelled deployment gets its own file instead of writing into
         # one named after this product. Path separators and spaces are stripped
@@ -91,7 +91,7 @@ services:
       DB_USER: ${DB_USER:?set DB_USER}
       DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
     ports:
-      - "${PORT:-9000}:${PORT:-9000}"
+      - "${PORT:-9090}:${PORT:-9090}"
     volumes:
       - app-data:/data
     # Grants raw sockets so the ARP scanner works. Without it the app falls

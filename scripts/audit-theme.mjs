@@ -1,7 +1,7 @@
 import { chromium } from 'playwright'
 import { readFile } from 'node:fs/promises'
 
-const baseURL = process.argv[2] ?? 'http://localhost:9000'
+const baseURL = process.argv[2] ?? 'http://localhost:9090'
 const theme = process.argv[3] ?? 'light'
 
 const envLocal = await readFile(new URL('../.env.local', import.meta.url), 'utf8').catch(() => '')

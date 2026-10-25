@@ -8,7 +8,7 @@
 import { chromium } from 'playwright'
 import { readFile } from 'node:fs/promises'
 
-const baseURL = process.argv[2] ?? 'http://localhost:9000'
+const baseURL = process.argv[2] ?? 'http://localhost:9090'
 
 function envFrom(text, key) {
   const raw = text.match(new RegExp(`^${key}=(.*)$`, 'm'))?.[1]?.trim()

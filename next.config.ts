@@ -3,28 +3,13 @@ import type { NextConfig } from 'next'
 import { devAllowedOrigins } from './lib/config/ports'
 
 /**
- * Content Security Policy for auth pages and the rest of the app.
- * Defaults to strict: only same-origin scripts, no eval, no inline script
- * except trusted hashes/nonces. `default-src 'self'` is the safe fallback;
- * specific directives allow images and fonts from data: and the same origin.
- *
- * Auth pages (`/auth/*`) are covered by this header too — Next.js applies
- * these headers globally across all routes.
+ * The CSP is **not** set here. It used to be, as a static header, and a static
+ * `script-src 'self'` broke the app outright: Next.js ships its hydration
+ * bootstrap as inline scripts, so every page failed to hydrate (see the long
+ * note in `proxy.ts`, which now generates the policy per request with a
+ * nonce). The remaining headers below are static values, which is exactly what
+ * belongs in this file.
  */
-const cspHeader = [
-  "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
-  "font-src 'self'",
-  "connect-src 'self'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  "object-src 'none'",
-  "upgrade-insecure-requests",
-].join('; ')
-
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ['bcryptjs', 'better-sqlite3', 'mysql2', 'kysely', 'node-cron', 'oui-data', 'bindings', 'file-uri-to-path'],
@@ -68,7 +53,6 @@ const nextConfig: NextConfig = {
       {
         source: '/:path*',
         headers: [
-          { key: 'Content-Security-Policy', value: cspHeader },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },

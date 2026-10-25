@@ -71,7 +71,7 @@ ENV NODE_ENV=production \
 # `/data/smart-network-monitor.db` embedded one deployment's name in every
 # copy of the image, which is the hardcoding `APP_NAME` was introduced to
 # remove — it had simply moved into a filename.
-ARG PORT=9000
+ARG PORT=9090
 ARG DB_FILE_NAME=app.db
 ENV PORT=${PORT} \
     DB_FILE=/data/${DB_FILE_NAME}
