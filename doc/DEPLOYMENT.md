@@ -75,9 +75,9 @@ ENV
 docker compose up -d --build app
 ```
 
-Then open <http://localhost:3000> and create the admin account.
+Then open <http://localhost:9090> and create the admin account.
 
-If host port 3000 is taken, prefix the command with a free port, e.g.
+If host port 9090 is taken, prefix the command with a free port, e.g.
 `APP_PORT=3100 docker compose up -d --build app`, and open
 <http://localhost:3100> instead. `DB_PORT` is the host port for the database and
 only matters for connecting to it from the host; the app reaches the database
@@ -112,7 +112,7 @@ supported; SQLite has been removed.
 | `SCAN_INTERVAL_SECONDS` | `30` | 30–3600 |
 | `DATA_RETENTION_DAYS` | `30` | 1–365, enforced by the nightly prune |
 | `NODE_ENV` | `development` | |
-| `PORT` | `3000` | |
+| `PORT` | `9090` | |
 | `LOG_LEVEL` | `info` | `fatal`…`trace`, or `silent` |
 | `ENABLE_DB_MIGRATIONS_ON_BOOT` | — | `true` applies pending migrations at startup |
 
@@ -153,7 +153,7 @@ without typing, create your own account through `/setup` on a fresh database.
 npm ci
 cp .env.example .env     # then edit it — SESSION_SECRET and ENCRYPTION_KEY
 npm run db:migrate
-npm run dev              # http://localhost:3000
+npm run dev              # http://localhost:9090
 ```
 
 Production:
@@ -243,7 +243,7 @@ nginx:
 
 ```nginx
 location /api/events {
-    proxy_pass http://127.0.0.1:3000;
+    proxy_pass http://127.0.0.1:9090;
     proxy_http_version 1.1;
     proxy_set_header Connection '';
     proxy_buffering off;
@@ -252,7 +252,7 @@ location /api/events {
 }
 
 location / {
-    proxy_pass http://127.0.0.1:3000;
+    proxy_pass http://127.0.0.1:9090;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
