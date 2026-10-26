@@ -14,6 +14,33 @@ import {
 import { ChevronUp, ChevronDown } from 'lucide-react'
 import type { DeviceDTO } from '@/lib/api/serialisers'
 
+/**
+ * Labels for the two controlled selects below.
+ *
+ * Radix's `SelectValue` mirrors the selected item by *portalling* that item's
+ * text into the trigger — but items only mount while the menu is open, so a
+ * trigger with a non-empty value and no children renders **empty** on a fresh
+ * page load until the user opens the menu once. That is exactly what the sort
+ * and order controls did: "Sort by" and "Order" appeared as blank boxes until
+ * clicked. `SelectValue` renders its children in place of the portalled text
+ * (and suppresses the portal while it has any), so passing the label keeps the
+ * trigger readable from the first paint.
+ *
+ * The status select does not need this: its "All statuses" item has the value
+ * `''`, which Radix treats as *no selection* and shows the placeholder for —
+ * which is the correct reading of that control anyway.
+ */
+const SORT_LABELS: Record<string, string> = {
+  lastSeen: 'Last Seen',
+  name: 'Name',
+  bandwidth: 'Bandwidth',
+}
+
+const ORDER_LABELS: Record<string, string> = {
+  asc: 'Ascending',
+  desc: 'Descending',
+}
+
 export default function DevicesPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<string>('')
@@ -67,7 +94,7 @@ export default function DevicesPage() {
           </Select>
           <Select value={sort} onValueChange={setSort}>
             <SelectTrigger className="w-[160px] bg-slate-800/50 border border-slate-700">
-              <SelectValue placeholder="Sort by" />
+              <SelectValue placeholder="Sort by">{SORT_LABELS[sort] ?? sort}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="lastSeen">Last Seen</SelectItem>
@@ -77,7 +104,7 @@ export default function DevicesPage() {
           </Select>
           <Select value={order} onValueChange={setOrder}>
             <SelectTrigger className="w-[120px] bg-slate-800/50 border border-slate-700">
-              <SelectValue placeholder="Order" />
+              <SelectValue placeholder="Order">{ORDER_LABELS[order] ?? order}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="asc">

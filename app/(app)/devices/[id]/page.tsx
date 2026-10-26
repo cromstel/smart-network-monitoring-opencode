@@ -109,8 +109,13 @@ export default function DeviceDetailPage() {
     <section className="mx-auto max-w-7xl px-4 py-8">
       <header className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
+          {/* Same visible-label chain as the device table
+              (`deviceName || hostname`, then MAC): most discovered devices
+              have no `deviceName`, and showing the bare MAC here after the
+              list showed a hostname reads as the click landing on the wrong
+              device. The MAC and hostname remain below either way. */}
           <h1 className="text-3xl font-semibold tracking-tight">
-            {device.deviceName || device.macAddress}
+            {device.deviceName || device.hostname || device.macAddress}
           </h1>
           <p className="mt-1 text-sm text-slate-400">
             MAC: {device.macAddress} Â· IP: {device.ipAddress}

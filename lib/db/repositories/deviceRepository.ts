@@ -88,14 +88,52 @@ export async function listDevices(filters: DeviceFilters = {}): Promise<DeviceLi
 
   const countRow = await countQuery.executeTakeFirstOrThrow()
 
+  /**
+   * Sort keys.
+   *
+   * `name` sorts by what the UI *shows* — `devices.device_name`, falling back
+   * to hostname, then MAC (`COALESCE`), the same chain the table renders.
+   * Sorting by the bare column looks broken: most discovered devices have no
+   * `device_name`, so the NULL rows group together (ordered by the MAC
+   * tiebreaker) and appear first in **both** directions while the named rows
+   * sit behind them — the list reads as unsorted whichever way it is toggled.
+   *
+   * `bandwidth` is the *current* rate, the latest sample per device — the
+   * exact aggregate `fetchStatsForDevices` produces for the DTO's
+   * `currentBandwidth`, as a correlated subquery so the sort and the number
+   * in the row cannot drift apart. It was previously a dead option: the enum
+   * and the dropdown both accepted it, and the query silently sorted by
+   * `last_seen` instead, so choosing "Bandwidth" returned rows ordered by
+   * recency with no indication anything was wrong.
+   *
+   * Both are raw SQL: Kysely has no expression slot for COALESCE or a
+   * correlated subquery in `orderBy`, and the alternative — pulling every row
+   * and sorting in JS — breaks pagination (the LIMIT/OFFSET would apply to
+   * the wrong ordering).
+   */
+  const displayName = sql`coalesce(device_name, hostname, mac_address)`
+  const currentBandwidth = sql`(
+    select bm.upload_speed + bm.download_speed
+    from bandwidth_metrics bm
+    where bm.device_id = devices.id
+    order by bm.timestamp desc
+    limit 1
+  )`
+
   if (filters.sort === 'name') {
-    dataQuery = dataQuery.orderBy('device_name', direction)
+    dataQuery = dataQuery.orderBy(displayName, direction)
+  } else if (filters.sort === 'bandwidth') {
+    dataQuery = dataQuery.orderBy(currentBandwidth, direction)
   } else {
     dataQuery = dataQuery.orderBy('last_seen', direction)
   }
 
+  // MAC is unique, so this makes the ordering total and pagination stable.
+  // It follows the primary direction rather than being pinned to `asc`:
+  // with `asc` a descending sort kept its ties ascending, which read as the
+  // toggle doing nothing when the primary key had many equal values.
   const rows = await dataQuery
-    .orderBy('mac_address', 'asc')
+    .orderBy('mac_address', direction)
     .limit(pageSize)
     .offset((page - 1) * pageSize)
     .execute()
