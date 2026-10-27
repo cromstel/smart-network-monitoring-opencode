@@ -20,10 +20,12 @@ import { ThemeSync, type Theme } from '@/components/ThemeSync'
 // Order is the reading order of the product: what is happening now, then
 // what exists, then what to act on, then configuration. '/' is the overview
 // and /devices is the list, which is why the nav distinguishes them rather
-// than reusing the word Dashboard for both.
+// than reusing the word Dashboard for both. Firewall sits with the actions
+// rather than the inventory: it is the page where devices get blocked.
 const NAV = [
   { href: '/', label: 'Overview' },
   { href: '/devices', label: 'Devices' },
+  { href: '/firewall', label: 'Firewall' },
   { href: '/alerts', label: 'Alerts' },
   { href: '/settings', label: 'Settings' },
 ]

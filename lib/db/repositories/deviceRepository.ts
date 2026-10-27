@@ -144,6 +144,23 @@ export async function listDevices(filters: DeviceFilters = {}): Promise<DeviceLi
   }
 }
 
+/**
+ * Every device the firewall has blocked at the device level.
+ *
+ * Ordered by name for display; the list is small enough (one row per blocked
+ * device) that pagination would be ceremony.
+ */
+export async function findBlocked(): Promise<Device[]> {
+  const rows = await db
+    .selectFrom('devices')
+    .selectAll()
+    .where('is_blocked', '=', 1)
+    .orderBy('mac_address', 'asc')
+    .execute()
+
+  return rows.map(rowToDevice)
+}
+
 export function findById(id: string): Promise<Device | null> {
   return db
     .selectFrom('devices')
@@ -158,6 +175,7 @@ export interface DevicePatch {
   deviceType?: string
   categoryId?: string | null
   isIgnored?: boolean
+  isBlocked?: boolean
 }
 
 export async function update(id: string, patch: DevicePatch): Promise<Device | null> {
@@ -171,6 +189,11 @@ export async function update(id: string, patch: DevicePatch): Promise<Device | n
   if ('deviceType' in patch) set.device_type = patch.deviceType ?? 'unknown'
   if ('categoryId' in patch) set.category_id = patch.categoryId ?? null
   if ('isIgnored' in patch) set.is_ignored = patch.isIgnored ? 1 : 0
+  // The device-level firewall switch: one flag on the row the UI already
+  // labels "Blocked", written here (and not by a raw UPDATE in a route) so it
+  // goes through the same existence check and `updated_at` touch as every
+  // other edit.
+  if ('isBlocked' in patch) set.is_blocked = patch.isBlocked ? 1 : 0
 
   await db.updateTable('devices').set(set).where('id', '=', id).execute()
 

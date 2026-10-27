@@ -1,4 +1,4 @@
-# Smart Network Monitoring — API Reference (updated 2026-10-25)
+# Smart Network Monitoring - API Reference (updated 2026-10-27)
 
 Verified endpoints: both **fetch** (GET / read) and **push** (POST / mutation / command) fully implemented and backed by DB / services — not stubbed.
 
@@ -25,7 +25,23 @@ Verified endpoints: both **fetch** (GET / read) and **push** (POST / mutation / 
 | POST | `/api/admin/email-providers` | push | `upsertProvider()`; input validated via repo |
 | GET | `/api/admin/vulnerability-alerts` | fetch | `findUnreadForUser(user.id)` |
 | GET | `/api/admin/devices/static-ip` | fetch | DB-backed |
-| POST | `/api/admin/devices/block` / `.../block/[id]` | push | Device block command |
+
+## Firewall
+
+The two halves of the firewall: `devices.is_blocked` (block the whole device) and
+`device_blocks` (block one destination for one device). Reads are open to every
+signed-in role; every mutation is ADMIN-only and re-checked by `requireAuth`
+inside the handler, with the proxy redirecting anonymous callers first.
+Replaces the earlier `/api/admin/devices/block` pair, which had no validation
+and no list endpoint.
+
+| Method | Endpoint | Fetch / Push | Notes |
+|--------|----------|--------------|-------|
+| GET | `/api/firewall/rules` | fetch | `listRules()`; rules with device labels, newest first; `requireAuth` (`VIEWER`/`MEMBER`/`ADMIN`) |
+| POST | `/api/firewall/rules` | push | `createRule()`; Zod `deviceId` + `websiteApp` (≤255); 404 unknown device, 409 duplicate active rule (case-insensitive); ADMIN only |
+| PATCH | `/api/firewall/rules/[id]` | push | `setRuleActive(id, isActive)`; 404 unknown rule; ADMIN only |
+| DELETE | `/api/firewall/rules/[id]` | push | `deleteRule(id)`; 404 unknown rule; ADMIN only |
+| PATCH | `/api/firewall/devices/[id]` | push | `setDeviceBlocked(id, isBlocked)`; flips `devices.is_blocked`; 404 unknown device; ADMIN only |
 
 ## Alerts / Network Monitoring (verified — fetch + push)
 
