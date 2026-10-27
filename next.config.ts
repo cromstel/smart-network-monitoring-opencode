@@ -12,7 +12,11 @@ import { devAllowedOrigins } from './lib/config/ports'
  */
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ['bcryptjs', 'better-sqlite3', 'mysql2', 'kysely', 'node-cron', 'oui-data', 'bindings', 'file-uri-to-path'],
+  // Packages Next must not bundle into the server build. `better-sqlite3` was
+  // here until SQLite was removed — it is no longer a dependency, and listing
+  // a package that is not installed only implies a runtime that does not
+  // exist. Every entry below is imported by server code today.
+  serverExternalPackages: ['bcryptjs', 'mysql2', 'kysely', 'node-cron', 'oui-data', 'bindings', 'file-uri-to-path'],
 
   /**
    * Hosts the dev server accepts requests from.

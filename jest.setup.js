@@ -1,13 +1,18 @@
 require('@testing-library/jest-dom')
 
 // Integration tests exercise the real repositories through the shared client
-// (lib/db/client.ts). Point it at an in-memory SQLite by default so no test
-// touches ./data/dev.db. CI flips DB_CLIENT=mysql (docker-compose.yml) and
-// the same specs then run against MySQL — TODO.md B-14.
-process.env.DB_FILE = process.env.DB_FILE ?? ':memory:'
-if (process.env.RUN_MYSQL_TESTS === '1' && !process.env.DB_CLIENT) {
-  process.env.DB_CLIENT = 'mysql'
-}
+// (lib/db/client.ts), which is MySQL-only since SQLite was removed: it needs
+// DB_USER / DB_PASSWORD / DB_NAME and fails at import time naming whichever is
+// missing — the same boot-time check the server uses.
+//
+// There is deliberately no database default here. A previous version pointed
+// DB_FILE at an in-memory SQLite so a suite could run without a database, and
+// that branch no longer exists; leaving a default would make a suite look
+// configured while it could not connect. Instead, DB-backed suites import the
+// client lazily and skip themselves with a message when the variables are
+// absent, which keeps `npm test` green on a machine with no database (the same
+// intent as `passWithNoTests` in jest.config.js). CI supplies the variables
+// through the docker-compose environment.
 
 // `lib/config.ts` requires SESSION_SECRET and ENCRYPTION_KEY in every
 // environment, because a built-in development fallback meant every developer
