@@ -1,5 +1,7 @@
 import * as blockRepo from '@/lib/db/repositories/deviceBlockRepository'
 import * as deviceRepo from '@/lib/db/repositories/deviceRepository'
+import { eventBusInstance, type FirewallBlockedEvent } from '@/lib/services/eventBus'
+import { logger } from '@/lib/utils/logger'
 import type { Device } from '@/lib/types'
 
 /**
@@ -69,6 +71,28 @@ function deviceLabel(device: {
   return device.deviceName || device.hostname || device.macAddress
 }
 
+/**
+ * Tells the admin group a block landed.
+ *
+ * Fire-and-forget: the bus handler is synchronous, and a notification problem
+ * must not fail the firewall write that succeeded a moment ago. `emit` itself
+ * catches handler errors, but the emit is wrapped anyway so a future bus
+ * change (an async emit, a throwing logger) cannot turn a successful block
+ * into a 500 for the user who requested it.
+ */
+function emitFirewallBlocked(payload: FirewallBlockedEvent['payload']): void {
+  try {
+    const event: FirewallBlockedEvent = {
+      type: 'firewall.blocked',
+      timestamp: new Date().toISOString(),
+      payload,
+    }
+    eventBusInstance.emit(event)
+  } catch (err) {
+    logger.error({ err, payload }, 'failed to emit firewall.blocked event')
+  }
+}
+
 export async function listRules(): Promise<FirewallRule[]> {
   const rows = await blockRepo.listBlocksWithDevices()
   return rows.map((r) => ({
@@ -122,6 +146,14 @@ export async function createRule(input: {
     createdBy: input.userId,
   })
 
+  emitFirewallBlocked({
+    deviceId: input.deviceId,
+    deviceLabel: deviceLabel(device),
+    action: 'rule_created',
+    target,
+    actorUserId: input.userId,
+  })
+
   return {
     ...created,
     deviceLabel: deviceLabel(device),
@@ -153,9 +185,29 @@ export async function deleteRule(id: string): Promise<boolean> {
  * Blocks or unblocks a device entirely. Unknown ids return null so the route
  * answers 404; a null device is the only failure mode, so there is no
  * FirewallError to raise here.
+ *
+ * `actorUserId` is optional so existing two-argument callers (the tests) keep
+ * compiling; the route passes the signed-in admin so the fan-out can exclude
+ * them from their own action's notification. Only a *block* emits — an
+ * unblock is the restoration of normal service, not a security event.
  */
-export async function setDeviceBlocked(deviceId: string, isBlocked: boolean): Promise<Device | null> {
-  return deviceRepo.update(deviceId, { isBlocked })
+export async function setDeviceBlocked(
+  deviceId: string,
+  isBlocked: boolean,
+  actorUserId?: string
+): Promise<Device | null> {
+  const device = await deviceRepo.update(deviceId, { isBlocked })
+
+  if (device && isBlocked && actorUserId) {
+    emitFirewallBlocked({
+      deviceId,
+      deviceLabel: deviceLabel(device),
+      action: 'device_blocked',
+      actorUserId,
+    })
+  }
+
+  return device
 }
 
 export async function listBlockedDevices(): Promise<Device[]> {

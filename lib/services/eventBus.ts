@@ -5,6 +5,13 @@ export type EventType =
   | 'device.disconnected'
   | 'bandwidth.tick'
   | 'alert.raised'
+  // Admin-group notification fan-out events. See `adminNotifier.ts` for the
+  // subscriber that turns these into per-admin notifications + emails.
+  | 'alert.fanout'
+  | 'firewall.blocked'
+  | 'vulnerability.raised'
+  | 'scan.completed'
+  | 'settings.changed'
 
 export interface BaseEvent {
   type: EventType
@@ -52,11 +59,88 @@ export interface AlertRaisedEvent extends BaseEvent {
   }
 }
 
+/**
+ * "Some alert(s) fired for rule owners; now tell the rest of the admin group."
+ *
+ * Emitted once per evaluation pass in `alertService` (not once per rule), with
+ * the rule owners who already received their per-user notification in
+ * `excludeUserIds`. The fan-out subscriber must skip those users, or an admin
+ * who owns a rule would be notified twice for the same event.
+ */
+export interface AlertFanoutEvent extends BaseEvent {
+  type: 'alert.fanout'
+  payload: {
+    alertType: string
+    deviceId: string | null
+    title: string
+    message: string
+    priority: 'low' | 'medium' | 'high' | 'critical'
+    excludeUserIds: string[]
+  }
+}
+
+/** A firewall action: whole-device block, or one destination rule created. */
+export interface FirewallBlockedEvent extends BaseEvent {
+  type: 'firewall.blocked'
+  payload: {
+    deviceId: string
+    deviceLabel: string
+    action: 'device_blocked' | 'rule_created'
+    /** Present only for `rule_created` — the blocked site/app hostname. */
+    target?: string
+    actorUserId: string
+  }
+}
+
+/** A vulnerability was recorded (route-triggered), for admin-group awareness. */
+export interface VulnerabilityRaisedEvent extends BaseEvent {
+  type: 'vulnerability.raised'
+  payload: {
+    deviceId: string | null
+    vulnerabilityType: string
+    severity: string
+    detail: string
+    actorUserId: string
+  }
+}
+
+/**
+ * A scan finished in a degraded state. Successful scans deliberately do *not*
+ * emit this: the scan runs on a short cron interval, so a success event would
+ * notify the admin group every minute. Only partial (some devices failed to
+ * ingest) and failed (the scanner itself threw) runs are worth a notification.
+ */
+export interface ScanCompletedEvent extends BaseEvent {
+  type: 'scan.completed'
+  payload: {
+    status: 'partial' | 'failed'
+    scanner: string
+    errors: number
+    devicesFound: number
+    durationMs: number
+    errorMessage: string | null
+  }
+}
+
+/** Settings were saved. `changedKeys` lists exactly which fields moved. */
+export interface SettingsChangedEvent extends BaseEvent {
+  type: 'settings.changed'
+  payload: {
+    changedKeys: string[]
+    actorUserId: string
+  }
+}
+
 export type AppEvent =
   | DeviceConnectedEvent
   | DeviceDisconnectedEvent
   | BandwidthTickEvent
   | AlertRaisedEvent
+  | AlertFanoutEvent
+  | FirewallBlockedEvent
+  | VulnerabilityRaisedEvent
+  | ScanCompletedEvent
+  | SettingsChangedEvent
 
 type EventHandler = (event: AppEvent) => void
 

@@ -5,6 +5,8 @@ import { logger } from '@/lib/utils/logger'
 import { scanOnce } from '@/lib/services/scanJob'
 import { rollupHourly } from '@/lib/services/rollupJob'
 import { pruneData } from '@/lib/services/pruneJob'
+import { sendDailyScanSummary } from '@/lib/services/scanSummaryJob'
+import { installAdminNotifier } from '@/lib/services/adminNotifier'
 import { runMigrations } from '@/lib/db/migrator'
 
 /**
@@ -28,6 +30,8 @@ interface SchedulerState {
   scanTimer: NodeJS.Timeout | null
   rollupTask: ScheduledTask | null
   pruneTask: ScheduledTask | null
+  summaryTask: ScheduledTask | null
+  unsubscribeNotifier: (() => void) | null
   scanInFlight: boolean
 }
 
@@ -40,6 +44,8 @@ function state(): SchedulerState {
       scanTimer: null,
       rollupTask: null,
       pruneTask: null,
+      summaryTask: null,
+      unsubscribeNotifier: null,
       scanInFlight: false,
     }
   }
@@ -120,6 +126,27 @@ function schedulePrune(): void {
   logger.info({ cron: '0 3 * * *' }, 'nightly prune job scheduled')
 }
 
+/**
+ * The daily admin scan summary, 08:00 server time.
+ *
+ * Runs even when nothing failed during the day: a quiet summary is the proof
+ * that scanning is alive, which is exactly what the "zero scans in 24h"
+ * branch exists to contradict. A failure inside is logged, never rethrown —
+ * a summary outage must not take down the scheduler.
+ */
+function scheduleDailySummary(): void {
+  const s = state()
+  if (s.summaryTask) s.summaryTask.stop()
+  s.summaryTask = cron.schedule('0 8 * * *', async () => {
+    try {
+      await sendDailyScanSummary()
+    } catch (err) {
+      logger.error({ err }, 'daily scan summary failed')
+    }
+  })
+  logger.info({ cron: '0 8 * * *' }, 'daily scan summary scheduled')
+}
+
 export function startScheduler(): void {
   const s = state()
   if (s.started) {
@@ -144,6 +171,13 @@ export function startScheduler(): void {
   scheduleScan()
   scheduleRollup()
   schedulePrune()
+  scheduleDailySummary()
+  // The admin-group notifier subscribes to the event bus here rather than at
+  // module load: it must not fan out notifications during `next build`, which
+  // evaluates this module. installAdminNotifier is itself idempotent.
+  if (!s.unsubscribeNotifier) {
+    s.unsubscribeNotifier = installAdminNotifier()
+  }
   logger.info('scheduler started')
 }
 
@@ -153,7 +187,10 @@ export function stopScheduler(): void {
   s.scanTimer = null
   s.rollupTask?.stop()
   s.pruneTask?.stop()
-  s.rollupTask = s.pruneTask = null
+  s.summaryTask?.stop()
+  s.rollupTask = s.pruneTask = s.summaryTask = null
+  s.unsubscribeNotifier?.()
+  s.unsubscribeNotifier = null
   s.started = false
   logger.info('scheduler stopped')
 }
@@ -162,12 +199,16 @@ export function getSchedulerStatus(): {
   scan: string | null
   rollup: string | null
   prune: string | null
+  summary: string | null
+  adminNotifier: boolean
 } {
   const s = state()
   return {
     scan: s.scanTimer ? 'scheduled' : null,
     rollup: s.rollupTask ? 'running' : null,
     prune: s.pruneTask ? 'running' : null,
+    summary: s.summaryTask ? 'running' : null,
+    adminNotifier: Boolean(s.unsubscribeNotifier),
   }
 }
 

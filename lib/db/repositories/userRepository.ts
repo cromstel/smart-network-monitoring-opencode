@@ -68,6 +68,27 @@ export async function findByEmailWithPassword(email: string): Promise<{ user: Us
   }
 }
 
+/**
+ * The admin group, resolved for notification fan-out.
+ *
+ * Only *active* admins: a deactivated account keeps its `role` column, so
+ * matching on role alone would keep emailing a user who was removed from the
+ * team. Only the fields the notifier needs are selected — a caller cannot
+ * accidentally hold a full `User` (with its password hash) after this query.
+ *
+ * Role values are uppercase (`ADMIN` | `MEMBER` | `VIEWER`, see
+ * `lib/types/user.ts`); the storage layer keeps them as written strings.
+ */
+export async function findActiveAdmins(): Promise<Array<{ id: string; email: string }>> {
+  return db
+    .selectFrom('users')
+    .select(['id', 'email'])
+    .where('role', '=', 'ADMIN')
+    .where('is_active', '=', 1)
+    .orderBy('created_at', 'asc')
+    .execute()
+}
+
 export async function listUsers(): Promise<User[]> {
   const rows = await db
     .selectFrom('users')

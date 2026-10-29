@@ -119,6 +119,18 @@ supported; SQLite has been removed.
 Invalid configuration fails at boot with a message naming the variable, not
 three layers deep as a runtime `undefined`.
 
+### Admin notifications and email delivery
+
+Active admins (`users.role='ADMIN'`, `is_active=1`) are notified by email
+**and** in-app for alerts, firewall blocks, vulnerabilities, scan
+failures/partials, and settings changes, plus a daily scan summary at 08:00
+server time. Email delivery requires a default email provider configured in
+**Admin → Email providers** (stored in the `email_providers` table — it is
+database state, not an environment variable). Without one, `sendEmail`
+throws, `adminNotifier` catches it per admin, and the group is notified
+in-app only: the system never fails a firewall write or a scan because SMTP
+is missing.
+
 ---
 
 ## First run

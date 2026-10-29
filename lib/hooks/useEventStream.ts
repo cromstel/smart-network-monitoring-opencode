@@ -98,6 +98,23 @@ export function useEventStream(handlers: EventHandlers = {}): {
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
     })
 
+    // Admin-group fan-out events: the server has just written one in-app
+    // notification row per active admin, so the bell's query is stale. No
+    // handler callbacks here — these are bookkeeping invalidations, not
+    // dashboard-visible device changes; the notification list is where they
+    // surface. Event names must match `EventType` in lib/services/eventBus.ts.
+    for (const type of [
+      'alert.fanout',
+      'firewall.blocked',
+      'vulnerability.raised',
+      'scan.completed',
+      'settings.changed',
+    ]) {
+      source.addEventListener(type, () => {
+        queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      })
+    }
+
     source.onerror = () => {
       setIsConnected(false)
       setError(new Error('Live updates reconnecting…'))

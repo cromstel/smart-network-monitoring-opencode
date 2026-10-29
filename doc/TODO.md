@@ -716,3 +716,29 @@ When you finish a task: tick it, and if it changed a decision, add a line to `ME
   caches, and stray `removepath` dirs cleaned; `.env.local` secrets
   rotated (`DB_PASSWORD`, `SESSION_SECRET`, `ADMIN_PASSWORD`,
   `VIEWER_PASSWORD`).
+
+---
+
+## Session updates - 2026-10-29 (admin-group notifications)
+
+- **Admin-group fan-out implemented:** every active admin (`role='ADMIN'`,
+  `is_active=1`) now receives both an in-app `notifications` row and an email
+  on alerts (`alert.fanout`), firewall blocks (`firewall.blocked`),
+  vulnerabilities (`vulnerability.raised`), degraded scans
+  (`scan.completed` - partial/failed only, success stays silent), and settings
+  changes (`settings.changed`; actor excluded, values never quoted - only
+  column names, because the patch can carry Paystack secrets).
+- **Daily scan summary:** `scanSummaryJob.sendDailyScanSummary()` scheduled
+  `0 8 * * *` in `instrumentation.node.ts`; zero scans in 24h escalates to
+  error/high ("scanning stopped"), otherwise an info/low rollup.
+- **New code:** `lib/services/adminNotifier.ts` (fan-out + event wiring,
+  never throws - email failures degrade to in-app-only), 
+  `lib/services/scanSummaryJob.ts` + `scanSummaryMessage.ts`,
+  `lib/db/repositories/scanHistoryRepository.ts`, 5 event types in
+  `eventBus.ts`, `findActiveAdmins()` in `userRepository.ts`.
+- **Dead code removed:** `notifyUnknownDevice` (zero callers) - the unknown
+  device path is `evaluateUnknownDevice` + `alert.fanout`.
+- **Tests:** `lib/__tests__/adminNotifier.test.ts` - 10 tests covering group
+  resolution, inactive exclusion, `excludeUserIds`, email-failure resilience,
+  HTML escaping, actor exclusion on both settings and firewall events, and
+  dashboard-traffic silence.

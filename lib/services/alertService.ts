@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import * as alertRepo from '@/lib/db/repositories/alertRepository'
 import * as deviceRepo from '@/lib/db/repositories/deviceRepository'
-import { eventBusInstance, type AlertRaisedEvent } from '@/lib/services/eventBus'
+import { eventBusInstance, type AlertRaisedEvent, type AlertFanoutEvent } from '@/lib/services/eventBus'
 import { isNotificationEnabled } from '@/lib/services/notificationPreferences'
 import { getEffectiveScanSettings } from '@/lib/services/runtimeSettings'
 import { logger } from '@/lib/utils/logger'
@@ -86,21 +86,67 @@ async function raise(
   return notification
 }
 
+/**
+ * Emits one `alert.fanout` event per evaluation pass, listing the rule owners
+ * who already got their per-user notification so the admin-group subscriber
+ * can skip them.
+ *
+ * Called once per `evaluate*` pass (not once per rule) because the whole pass
+ * is one logical event: "these devices tripped this alert type". Emitting per
+ * rule would send the admin group one message per matching rule, which for N
+ * owners of the same global rule is N near-identical emails.
+ *
+ * A pass that raised nothing emits nothing — an admin group that was told
+ * "no alerts fired" on every scan would learn to ignore the channel.
+ */
+function emitFanout(input: {
+  alertType: string
+  deviceId: string | null
+  title: string
+  message: string
+  priority: NotificationPriority
+  notifiedUserIds: string[]
+}): void {
+  if (input.notifiedUserIds.length === 0) return
+
+  const event: AlertFanoutEvent = {
+    type: 'alert.fanout',
+    timestamp: nowIso(),
+    payload: {
+      alertType: input.alertType,
+      deviceId: input.deviceId,
+      title: input.title,
+      message: input.message,
+      priority: input.priority,
+      excludeUserIds: input.notifiedUserIds,
+    },
+  }
+  eventBusInstance.emit(event)
+}
+
 /** F-30: a device nobody has seen before. */
 export async function evaluateUnknownDevice(device: Device): Promise<void> {
   const rules = await alertRepo.getActiveGlobalAlerts('unknown_device')
+  const notified: string[] = []
+  const title = 'Unknown device connected'
+  const message = `${deviceLabel(device)} (${device.macAddress}) joined the network at ${device.ipAddress}`
+
   for (const rule of rules) {
     // F-52: the rule's owner may have switched this type off.
     if (!(await isNotificationEnabled(rule.userId, rule.alertType))) continue
 
-    await raise(
-      rule,
-      device,
-      'Unknown device connected',
-      `${deviceLabel(device)} (${device.macAddress}) joined the network at ${device.ipAddress}`,
-      'high'
-    )
+    await raise(rule, device, title, message, 'high')
+    notified.push(rule.userId)
   }
+
+  emitFanout({
+    alertType: 'unknown_device',
+    deviceId: device.id,
+    title,
+    message,
+    priority: 'high',
+    notifiedUserIds: notified,
+  })
 }
 
 /** F-32: a named device stopped answering scans. */
@@ -112,29 +158,39 @@ export async function evaluateDeviceOffline(devices: Device[]): Promise<void> {
   // user who configured 120s is a small lie that erodes trust in the alert.
   const { scanIntervalSeconds } = await getEffectiveScanSettings()
 
-  const perDevice = await Promise.all(
+  await Promise.all(
     devices.map(async (device) => {
       const [bound, global] = await Promise.all([
         alertRepo.getActiveAlertsForDevice(device.id),
         alertRepo.getActiveGlobalAlerts('device_offline'),
       ])
       const offline = [...bound, ...global].filter((r) => r.alertType === 'device_offline')
+      const notified: string[] = []
+      const title = 'Device went offline'
+      const message = `${deviceLabel(device)} has not responded for ${
+        scanIntervalSeconds * MISSED_SCANS_BEFORE_OFFLINE
+      } seconds`
+
       for (const rule of offline) {
         if (!(await isNotificationEnabled(rule.userId, rule.alertType))) continue
 
-        await raise(
-          rule,
-          device,
-          'Device went offline',
-          `${deviceLabel(device)} has not responded for ${
-            scanIntervalSeconds * MISSED_SCANS_BEFORE_OFFLINE
-          } seconds`,
-          'medium'
-        )
+        await raise(rule, device, title, message, 'medium')
+        notified.push(rule.userId)
       }
+
+      // One fan-out per device: each offline device is its own incident with
+      // its own message, so folding them into a single group notification
+      // would lose which device went away.
+      emitFanout({
+        alertType: 'device_offline',
+        deviceId: device.id,
+        title,
+        message,
+        priority: 'medium',
+        notifiedUserIds: notified,
+      })
     })
   )
-  return Promise.resolve(perDevice).then(() => undefined)
 }
 
 /** F-31: a device exceeded the user's configured Mbps threshold. */
@@ -144,19 +200,31 @@ export async function evaluateBandwidthThreshold(device: EnrichedDevice): Promis
   const rules = await alertRepo.getActiveAlertsForDevice(device.device.id)
   const totalMbps = device.network.downloadMbps + device.network.uploadMbps
 
+  const notified: string[] = []
+  let thresholdSeen: number | null = null
+  const title = 'Bandwidth threshold exceeded'
+
   for (const rule of rules) {
     if (rule.alertType !== 'bandwidth_exceeded' || rule.threshold == null) continue
     if (totalMbps <= rule.threshold) continue
     if (!(await isNotificationEnabled(rule.userId, rule.alertType))) continue
 
-    await raise(
-      rule,
-      device.device,
-      'Bandwidth threshold exceeded',
-      `${deviceLabel(device.device)} is using ${totalMbps.toFixed(1)} Mbps, above the ${rule.threshold} Mbps limit`,
-      'high'
-    )
+    thresholdSeen = rule.threshold
+    const message = `${deviceLabel(device.device)} is using ${totalMbps.toFixed(1)} Mbps, above the ${rule.threshold} Mbps limit`
+    await raise(rule, device.device, title, message, 'high')
+    notified.push(rule.userId)
   }
+
+  if (notified.length === 0) return
+
+  emitFanout({
+    alertType: 'bandwidth_exceeded',
+    deviceId: device.device.id,
+    title,
+    message: `${deviceLabel(device.device)} is using ${totalMbps.toFixed(1)} Mbps, above the ${thresholdSeen} Mbps limit`,
+    priority: 'high',
+    notifiedUserIds: notified,
+  })
 }
 
 // ---------------------------------------------------------------------------

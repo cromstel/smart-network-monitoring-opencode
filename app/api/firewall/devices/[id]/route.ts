@@ -35,7 +35,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return apiError(400, 'INVALID_BODY', 'Invalid block state', parsed.error.flatten())
   }
 
-  const device = await setDeviceBlocked(id, parsed.data.isBlocked)
+  const device = await setDeviceBlocked(id, parsed.data.isBlocked, auth.user.id)
   if (!device) {
     return apiError(404, 'NOT_FOUND', 'Device not found')
   }

@@ -1,10 +1,9 @@
-import { randomUUID } from 'node:crypto'
 import { selectScanner } from './scanners/selector'
 import { upsertFromScan, findByMac, findAllMacAddresses } from '@/lib/db/repositories/deviceRepository'
 import { insert as insertConnectionLog } from '@/lib/db/repositories/connectionLogRepository'
-import { db } from '@/lib/db/client'
+import { insertScanHistory } from '@/lib/db/repositories/scanHistoryRepository'
 import { logger } from '@/lib/utils/logger'
-import { eventBusInstance } from '@/lib/services/eventBus'
+import { eventBusInstance, type ScanCompletedEvent } from '@/lib/services/eventBus'
 import { markStaleDevicesOffline, getDeviceById } from '@/lib/services/deviceService'
 import {
   evaluateUnknownDevice,
@@ -60,7 +59,36 @@ export async function scanOnce(): Promise<ScanResult> {
   )
 
   const knownMacs = new Set(await findAllMacAddresses())
-  const discovered = await scanner.scan(effective.subnet)
+
+  // A scanner that throws (router unreachable, no interface, permission
+  // denied) is the "scan failed" case: nothing was ingested, no history row is
+  // written by this path, and the scheduler only logs it. Emitting before the
+  // rethrow gives the admin group the one signal the log alone would hide —
+  // the rethrow is kept so the scheduler's own error handling is unchanged.
+  let discovered: DiscoveredDevice[]
+  try {
+    discovered = await scanner.scan(effective.subnet)
+  } catch (err) {
+    try {
+      const event: ScanCompletedEvent = {
+        type: 'scan.completed',
+        timestamp: nowIso(),
+        payload: {
+          status: 'failed',
+          scanner: scanner.name,
+          errors: 1,
+          devicesFound: 0,
+          durationMs: Date.now() - start,
+          errorMessage: err instanceof Error ? err.message : String(err),
+        },
+      }
+      eventBusInstance.emit(event)
+    } catch (emitErr) {
+      // Never let the notification path mask the scanner failure itself.
+      logger.error({ err: emitErr }, 'failed to emit scan.completed event')
+    }
+    throw err
+  }
 
   await applyReverseDns(discovered)
 
@@ -130,6 +158,30 @@ export async function scanOnce(): Promise<ScanResult> {
     status: errors > 0 ? 'partial' : 'success',
     errorMessage: errors > 0 ? `${errors} device(s) failed to ingest` : null,
   })
+
+  // Only a degraded run notifies. A success event here would fire on every
+  // scan tick (often every minute), which is exactly the noise the admin
+  // group would learn to ignore. Partial means "some devices are missing or
+  // stale" — the actionable case.
+  if (errors > 0) {
+    try {
+      const event: ScanCompletedEvent = {
+        type: 'scan.completed',
+        timestamp: nowIso(),
+        payload: {
+          status: 'partial',
+          scanner: scanner.name,
+          errors,
+          devicesFound: discovered.length,
+          durationMs,
+          errorMessage: `${errors} device(s) failed to ingest`,
+        },
+      }
+      eventBusInstance.emit(event)
+    } catch (err) {
+      logger.error({ err }, 'failed to emit scan.completed event')
+    }
+  }
 
   logger.info(
     {
@@ -295,20 +347,7 @@ async function recordScanHistory(input: {
   errorMessage: string | null
 }): Promise<void> {
   try {
-    await db
-      .insertInto('network_scan_history')
-      .values({
-        id: randomUUID(),
-        scanner_name: input.scannerName,
-        scan_duration: input.durationMs,
-        device_count: input.deviceCount,
-        success_count: input.successCount,
-        failure_count: input.failureCount,
-        status: input.status,
-        error_message: input.errorMessage,
-        created_at: nowIso(),
-      })
-      .execute()
+    await insertScanHistory(input)
   } catch (err) {
     // History is observability, not function: never fail a scan over it.
     logger.error({ err }, 'failed to record scan history')
