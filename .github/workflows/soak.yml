@@ -65,7 +65,7 @@ jobs:
       - name: Prepare the soak database
         run: |
           rm -f ./data/soak.db
-          DB_CLIENT=sqlite DB_FILE=./data/soak.db npm run db:migrate
+          DB_CLIENT=mysql DB_NAME=home_monitor_soak npm run db:migrate
         env:
           SESSION_SECRET: soak-session-secret-not-for-production-000000
           ENCRYPTION_KEY: soak-encryption-key-not-for-production-00000000

@@ -4,28 +4,9 @@ import { Suspense, useState, type FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { safeRedirect } from '@/lib/utils/redirect'
 
-/**
- * The interactive half of the sign-in page, moved out of `page.tsx` so that
- * file can be a server component and read `APP_NAME` on the server.
- *
- * `'use client'` has to be the *outermost* boundary here. An earlier attempt
- * put `'use client'` on the page and imported a server component for the name:
- * importing a server component from a client module pulls it into the client
- * graph, so `process.env.APP_NAME` was read in the browser, where it is always
- * `undefined`. The failure surfaced as a `MissingAppIdentityError` thrown from
- * a `_next/static/chunks/...` frame during the E2E run — a stack that can only
- * ever be the client bundle.
- *
- * The markup is unchanged from the version that lived in `page.tsx`.
- */
-
 function LoginForm() {
   const router = useRouter()
   const params = useSearchParams()
-  // The middleware sets ?redirect= to the path that was denied, so a deep link
-  // survives the login detour. It is user-supplied all the same, so it is
-  // validated rather than trusted: without this, a link to
-  // /auth/login?redirect=https://elsewhere navigates off-origin after sign-in.
   const redirect = safeRedirect(params.get('redirect'))
 
   const [email, setEmail] = useState('')
@@ -37,20 +18,17 @@ function LoginForm() {
     e.preventDefault()
     setError(null)
     setPending(true)
-
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       })
-
       if (res.ok) {
         router.replace(redirect)
         router.refresh()
         return
       }
-
       if (res.status === 429) {
         const retry = res.headers.get('Retry-After')
         setError(`Too many attempts. Try again in ${retry ?? 'a few'}s.`)
@@ -66,26 +44,14 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-8 space-y-4">
-      {/* App logo — inline SVG, no external asset or tracked file */}
-      <div className="flex justify-center mb-2">
-        <svg
-          width="48"
-          height="48"
-          viewBox="0 0 48 48"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-label="Network Monitor logo"
-          className="drop-shadow-sm"
-        >
-          <rect x="6" y="6" width="36" height="36" rx="10" fill="#3b82f6" opacity="0.15" />
-          <rect x="6" y="6" width="36" height="36" rx="10" stroke="#3b82f6" strokeWidth="2.5" />
-          <path d="M14 24 L24 14 L34 24" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="24" cy="26" r="3" fill="#3b82f6" />
-        </svg>
+    <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0b1224]/70 shadow-[0_0_60px_-15px_rgba(59,130,246,0.15)] backdrop-blur-sm">
+      {/* Logo inside form card */}
+      <div className="flex justify-center pt-6">
+        <img src="/logo.svg" alt="Network Monitor logo" width="48" height="48" />
       </div>
+      <form onSubmit={onSubmit} className="space-y-5 px-6 pb-6 pt-4" aria-label="Sign in">
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-slate-300">
+        <label htmlFor="email" className="block text-xs font-medium uppercase tracking-widest text-slate-400">
           Email
         </label>
         <input
@@ -94,14 +60,15 @@ function LoginForm() {
           type="email"
           autoComplete="username"
           required
+          placeholder="admin@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2 text-slate-100 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="mt-2 w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-400/20 transition"
         />
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-slate-300">
+        <label htmlFor="password" className="block text-xs font-medium uppercase tracking-widest text-slate-400">
           Password
         </label>
         <input
@@ -110,14 +77,15 @@ function LoginForm() {
           type="password"
           autoComplete="current-password"
           required
+          placeholder="••••••••"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2 text-slate-100 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="mt-2 w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-400/20 transition"
         />
       </div>
 
       {error && (
-        <p role="alert" className="rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-sm text-red-300">
+        <p role="alert" aria-live="assertive" className="rounded-lg border border-red-900/60 bg-red-950/30 px-3 py-2.5 text-sm text-red-300">
           {error}
         </p>
       )}
@@ -125,24 +93,25 @@ function LoginForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+        aria-disabled={pending}
+        className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-400 px-4 py-3 text-sm font-medium text-white shadow-[0_4px_20px_rgba(59,130,246,0.35)] transition hover:brightness-110 hover:shadow-[0_6px_28px_rgba(59,130,246,0.45)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {pending ? 'Signing in…' : 'Sign in'}
       </button>
     </form>
+    </div>
   )
 }
 
-/**
- * Wraps the form in the `Suspense` boundary `useSearchParams` requires.
- *
- * Exported as a whole so the server page composes `<LoginForm />` without
- * knowing about the boundary — the requirement belongs to this file, with the
- * hook that creates it.
- */
 export function LoginFormBoundary() {
   return (
-    <Suspense fallback={<div className="mt-8 h-64 animate-pulse rounded-lg bg-slate-800/40" />}>
+    <Suspense fallback={
+      <div className="space-y-5">
+        <div className="h-11 rounded-xl bg-white/[0.05] animate-pulse" />
+        <div className="h-11 rounded-xl bg-white/[0.05] animate-pulse" />
+        <div className="h-10 rounded-xl bg-white/[0.05] animate-pulse" />
+      </div>
+    }>
       <LoginForm />
     </Suspense>
   )

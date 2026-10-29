@@ -8,8 +8,8 @@
  * **This script creates no account unless you name one.** ER-41 removed the
  * hardcoded `admin@network-monitor.local` / known password that used to be
  * written here, because a seed script that runs unattended against whatever
- * `DB_FILE` happens to point at is exactly how a known credential ends up in a
- * database somebody then exposes.
+ * schema happens to be configured is exactly how a known credential ends up in
+ * a database somebody then exposes.
  *
  * To create the first account, either:
  *
@@ -31,6 +31,9 @@
  *
  *   npm run db:seed
  *   ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='...' npm run db:seed
+ *
+ * `DB_NAME` selects the schema, and `lib/db/client.ts` requires it — nothing
+ * here defaults it.
  */
 
 import { randomUUID } from 'node:crypto'
@@ -136,9 +139,9 @@ async function run(): Promise<void> {
 
   logger.info(`Seeded ${DEVICES.length} devices.`)
 
-  // Seven days of bandwidth, two samples an hour. Inserts are batched because
-  // a per-row round trip over ~2,000 rows is slow on MySQL and pointless on
-  // SQLite.
+  // Seven days of bandwidth, two samples an hour. Batched: a per-row round
+  // trip over ~2,000 rows is 2,000 network round trips to the server, which is
+  // the slowest part of the seed by far.
   const samples: Array<Record<string, unknown>> = []
   for (const deviceId of deviceIds) {
     let uploadTotal = 0

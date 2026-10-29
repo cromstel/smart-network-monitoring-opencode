@@ -48,7 +48,7 @@ interface SettingsOverrideRow {
 
 /**
  * The first row by `user_id`. Deliberately not `LIMIT 1` without an ORDER BY:
- * SQLite is free to return any row, and a test that asserts a resolved value
+ * A missing row resolves to the environment default; a test asserting a
  * must not depend on insertion order.
  */
 async function findSettingsOverride(): Promise<SettingsOverrideRow | null> {

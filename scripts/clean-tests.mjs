@@ -7,10 +7,11 @@
  *   node scripts/clean-tests.mjs --sources  — additionally remove the test
  *                                               SOURCES from the working tree
  *
- * Artefacts are the residue a test run leaves behind: coverage output,
- * Playwright reports, the throwaway SQLite databases the suites and the
- * perf/soak harnesses create, and the Jest cache. They are regenerated on
- * demand, so removing them is free.
+ * Artefacts are the residue a test run leaves behind: coverage output and
+ * Playwright reports. They are regenerated on demand, so removing them is free.
+ * There is no database file to sweep any more — the test data lives in a
+ * MySQL/MariaDB schema, and that is recreated by `scripts/reset-e2e-db.mjs`
+ * rather than deleted from here.
  *
  * Sources are the test files themselves. They are untracked (see .gitignore),
  * which means the working tree no longer has them - but they are still in the
@@ -19,9 +20,7 @@
  * explicit flag and not part of the default run: `npm run test:clean` is safe
  * to call after every run, `npm run test:purge` is a deliberate act.
  *
- * Nothing outside the project directory is touched, and `data/dev.db` — the
- * live development database with the user's accounts and scan history — is
- * explicitly preserved.
+ * Nothing outside the project directory is touched.
  */
 import { existsSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -35,21 +34,6 @@ const ARTEFACTS = [
   'playwright-report',
   'test-results',
   '.jest-cache',
-]
-
-/**
- * Throwaway databases created by the test, perf and soak harnesses.
- *
- * `data/dev.db` is deliberately absent: it is the live development database
- * with the user's accounts, settings and scan history. Only databases whose
- * name identifies them as disposable are removed.
- */
-const DISPOSABLE_DB_NAMES = [
-  'e2e.db',
-  'perf.db',
-  'fcp.db',
-  'soak.db',
-  'test.db',
 ]
 
 /**
@@ -116,19 +100,15 @@ for (const artefact of ARTEFACTS) {
   }
 }
 
+// The soak harness's renamed node copy lives in `data/`, and that directory is
+// the only part of the tree this still touches. It is not a database: the
+// databases are server-side schemas, and the ones worth recreating are reset
+// by dropping and rebuilding them rather than by deleting a file here.
 const dataDir = join(ROOT, 'data')
 if (existsSync(dataDir)) {
   for (const entry of readdirSync(dataDir, { withFileTypes: true })) {
     if (!entry.isFile()) continue
-    const isDisposable =
-      DISPOSABLE_DB_NAMES.some(
-        (name) => entry.name === name || entry.name.startsWith(`${name}-`)
-      ) ||
-      DISPOSABLE_DATA_FILES.includes(entry.name) ||
-      // The soak harness writes timestamped databases (soak-partial-*.db,
-      // soak-smoke.db) as well as the fixed one.
-      (/^soak.*\.db$/.test(entry.name) && entry.name !== 'soak.db')
-    if (!isDisposable) continue
+    if (!DISPOSABLE_DATA_FILES.includes(entry.name)) continue
     const target = join(dataDir, entry.name)
     freed += statSync(target).size
     if (rm(target)) removed.push(`data/${entry.name}`)

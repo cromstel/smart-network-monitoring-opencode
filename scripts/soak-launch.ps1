@@ -33,7 +33,7 @@
       distinguishable from a clean 1440-minute completion.
     - Environment mirrors .github/workflows/soak.yml: SOAK_MINUTES=1440,
       60s sampling, 30s scans, placeholder SESSION_SECRET/ENCRYPTION_KEY,
-      NODE_OPTIONS=--expose-gc, DB_FILE=./data/soak.db.
+      NODE_OPTIONS=--expose-gc, and the database name the soak runs against.
 
   Smoke testing: -Minutes N shortens the run (SOAK_MINUTES=N) and -OutLog/
   -ErrLog redirect to distinct files so a smoke never touches the real logs.
@@ -218,7 +218,11 @@ $env:ENCRYPTION_KEY = 'soak-encryption-key-not-for-production-00000000'
 $env:SOAK_MINUTES   = [string]$Minutes
 $env:SOAK_SAMPLE_MS = '60000'
 $env:SOAK_SCAN_MS   = '30000'
-$env:DB_FILE        = './data/soak.db'
+# A throwaway schema, not the development one: 24 hours of scan cycles writing
+# devices, metrics and scan history into the operator's real data is not a
+# measurement, it is vandalism. The schema has to exist already - the app's own
+# user cannot create one (doc/MEMORY.md).
+$env:DB_NAME        = 'home_monitor_soak'
 $env:NODE_OPTIONS   = '--expose-gc'
 
 $nodeExe = Join-Path $RepoRoot 'data\node-soak.exe'

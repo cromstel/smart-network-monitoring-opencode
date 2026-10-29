@@ -29,7 +29,7 @@ import { db } from './client'
  *
  * The alternative — a real DATETIME plus a dialect-aware conversion on every
  * write — was rejected deliberately: mysql2 would then hand back Date objects
- * where SQLite returns strings, contradicting every `string` in schema.ts and
+ * where the driver returns `Date` objects, contradicting every `string` in
  * pushing a conversion into every read path. If you are tempted to change these
  * back to datetime, run the MariaDB leg first:
  *

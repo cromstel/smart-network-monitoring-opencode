@@ -19,7 +19,7 @@ Source of truth for requirements: `docs/PRD.md`.
 
 These override any suggestion, convenience, or precedent. If a task appears to require breaking one, stop and ask.
 
-1. **Database: MariaDB 12.3 in production, SQLite in development.** No PostgreSQL, no MongoDB, and no MySQL proper — MariaDB is what is deployed and what CI must test. The two speak the same protocol, so DB_CLIENT=mysql names the *driver* (Kysely MysqlDialect over mysql2), not the server.
+1. **Database: MariaDB 12.3 (development server and the bundled Compose stack) and MySQL 8.4 (deployed container stack).** No PostgreSQL, no MongoDB, and no other engine — both supported servers are MySQL-family and are reached through the same driver. The two speak the same protocol, so DB_CLIENT=mysql names the *driver* (Kysely MysqlDialect over mysql2), not the server.
 2. **No ORM with a binary engine.** Prisma is removed and must not be reintroduced — its binary CDN is unreachable in the sandbox and it forced a PostgreSQL provider. Use the query builder specified in `ARCHITECTURE.md` §4.
 3. **Every SQL statement must run on both dialects.** CI runs the suite against MariaDB; do not rely on SQLite-only behaviour. **This constraint was satisfied on paper and violated in practice for weeks** — see §5.
 4. **No secret is ever returned by an API route** — not router passwords, not session tokens, not encryption keys. Not even encrypted.

@@ -13,7 +13,7 @@ import { runMigrations } from '@/lib/db/migrator'
  * This file is deliberately *not* `instrumentation.ts`. Next.js compiles the
  * instrumentation hook for every runtime it builds, including Edge, so anything
  * statically imported there is pulled into an Edge compilation as well — and
- * this module reaches better-sqlite3, `node:child_process` and the scanner
+ * this module reaches the database driver, `node:child_process` and the scanner
  * stack, none of which exist on Edge. Keeping it in a separate file that
  * `instrumentation.ts` imports conditionally keeps the Edge bundle clean.
  *

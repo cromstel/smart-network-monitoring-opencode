@@ -424,8 +424,12 @@ async function main(): Promise<void> {
   }
 
   const cfg = getConfig()
+  // The schema, named the way `scripts/perf.ts` names it in its report: a
+  // MySQL-family server is reached by host and port and holds the data in a
+  // schema, so `DB_NAME` is what identifies what this run is about to hammer.
+  const database = `${process.env.DB_HOST ?? 'localhost'}:${process.env.DB_PORT ?? 3306}/${process.env.DB_NAME ?? '(unset)'}`
   logger.info(
-    { durationMinutes: DEFAULTS.durationMinutes, dbFile: process.env.DB_FILE, subnet: cfg.NETWORK_SUBNET },
+    { durationMinutes: DEFAULTS.durationMinutes, database, subnet: cfg.NETWORK_SUBNET },
     'soak starting'
   )
 

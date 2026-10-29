@@ -43,7 +43,8 @@ interface AlertRow {
   device_id: string | null
   alert_type: string
   threshold: number | null
-  // SQLite is opened with defaultSafeIntegers, so these arrive as bigint.
+  // MySQL returns BIGINT columns as strings and integer columns as numbers,
+  // so the values below are normalised by the mapper rather than assumed.
   is_active: number | bigint
   last_triggered: string | null
   trigger_count: number | bigint

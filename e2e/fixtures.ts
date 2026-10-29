@@ -4,7 +4,7 @@ import { e2eAccount } from '../lib/config/e2eAccounts'
 /**
  * Shared E2E fixtures.
  *
- * The suite runs against a throwaway SQLite file and the simulated scanner,
+ * The suite runs against a throwaway database and the simulated scanner,
  * so it never touches a real network or a developer's data directory. State is
  * reset between specs by recreating the database, which keeps each spec
  * independent rather than order-dependent.

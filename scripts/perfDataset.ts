@@ -8,12 +8,11 @@
  * database big enough to measure honestly.
  *
  * Refuses to touch a database that already has devices, and requires the
- * caller to name a throwaway target — a `DB_FILE` path on SQLite, a `DB_NAME`
- * schema on MySQL — so it cannot clobber real data.
+ * caller to name a throwaway `DB_NAME` schema — a schema name is the MySQL
+ * equivalent of the file path this used to take, and there is no fallback.
  *
  * Usage:
- *   SQLite:   DB_FILE=./data/perf.db                  npm run perf:dataset
- *   MySQL:    DB_NAME=home_monitor_perf               npm run perf:dataset
+ *   DB_NAME=home_monitor_perf               npm run perf:dataset
  */
 
 import { randomUUID } from 'node:crypto'
@@ -49,65 +48,51 @@ export interface PerfDatasetSummary {
   devices: number
   bandwidthRows: number
   connectionLogRows: number
-  databaseFile: string
+  database: string
 }
 
 /**
- * Confirms the target database is a throwaway, and returns a human label for
- * it. The dataset is 288,000 rows written one device at a time — pointed at a
- * real database that is destructive, so this refuses rather than trusting the
- * caller to have been careful.
+ * Confirms the target schema is a throwaway, and returns a human label for it.
+ * The dataset is 288,000 rows written one device at a time — pointed at a real
+ * schema that is destructive, so this refuses rather than trusting the caller
+ * to have been careful.
  *
- * The guard is dialect-aware because the ways of naming a throwaway differ: a
- * SQLite throwaway is a file path, a MySQL one is a schema. Requiring `DB_FILE`
- * on the MySQL path would have meant the MySQL leg could never run at all,
- * which is how it stayed unmeasured in the first place.
+ * `DB_NAME` is required and never defaulted. A built-in schema name is exactly
+ * the mistake `lib/config/app.ts` refuses to make for the app itself: the run
+ * would silently fill whatever schema happened to be configured, which is the
+ * live one more often than not.
  */
 export async function assertDisposableDatabase(): Promise<string> {
-  const client = process.env.DB_CLIENT ?? 'sqlite'
-
-  if (client === 'mysql') {
-    const name = process.env.DB_NAME ?? ''
-    if (!name) {
-      throw new Error('DB_NAME must be set when DB_CLIENT=mysql — refusing to guess.')
-    }
-    // Same intent as the `dev.db` check below: a name that looks like it could
-    // be the real one is refused outright. The list lives beside the naming
-    // rules in `lib/config/app.ts` so the guard and the rest of the codebase
-    // cannot disagree about which names are reserved.
-    if (RESERVED_DB_NAMES.some((reserved) => reserved.toLowerCase() === name.toLowerCase())) {
-      throw new Error(
-        `Refusing to build a performance dataset in schema "${name}" — that looks like the live database. Point DB_NAME at a scratch schema.`
-      )
-    }
-    if (!/(_test|_perf|perf_|_scratch)/i.test(name)) {
-      throw new Error(
-        `Refusing to build a performance dataset in schema "${name}" — the name does not look like a throwaway. Use a schema such as home_monitor_perf.`
-      )
-    }
-    return `${process.env.DB_HOST ?? 'localhost'}:${process.env.DB_PORT ?? 3306}/${name}`
+  const name = process.env.DB_NAME ?? ''
+  if (!name) {
+    throw new Error('DB_NAME must be set (e.g. home_monitor_perf) — refusing to guess.')
   }
-
-  const file = process.env.DB_FILE ?? ''
-  if (!file) {
-    throw new Error('DB_FILE must be set (e.g. ./data/perf.db) — refusing to guess.')
+  // A name that looks like it could be the real one is refused outright. The
+  // list lives beside the naming rules in `lib/config/app.ts` so the guard and
+  // the rest of the codebase cannot disagree about which names are reserved.
+  if (RESERVED_DB_NAMES.some((reserved) => reserved.toLowerCase() === name.toLowerCase())) {
+    throw new Error(
+      `Refusing to build a performance dataset in schema "${name}" — that looks like the live database. Point DB_NAME at a scratch schema.`
+    )
   }
-  if (file.includes('dev.db') && !file.includes('perf')) {
-    throw new Error(`Refusing to build a performance dataset in ${file}`)
+  if (!/(_test|_perf|perf_|_scratch)/i.test(name)) {
+    throw new Error(
+      `Refusing to build a performance dataset in schema "${name}" — the name does not look like a throwaway. Use a schema such as home_monitor_perf.`
+    )
   }
-  return file
+  return `${process.env.DB_HOST ?? 'localhost'}:${process.env.DB_PORT ?? 3306}/${name}`
 }
 
 export async function buildPerfDataset(
   options: PerfDatasetOptions = DEFAULT_PERF_DATASET
 ): Promise<PerfDatasetSummary> {
-  const databaseFile = await assertDisposableDatabase()
+  const database = await assertDisposableDatabase()
   await runMigrations()
 
   const existing = await db.selectFrom('devices').select('id').executeTakeFirst()
   if (existing) {
     throw new Error(
-      `${databaseFile} already contains devices. Delete it before building a performance dataset.`
+      `${database} already contains devices. Delete it before building a performance dataset.`
     )
   }
 
@@ -167,8 +152,8 @@ export async function buildPerfDataset(
     await db.insertInto('devices').values(deviceRows.slice(i, i + 50) as never).execute()
   }
 
-  // Bandwidth samples, oldest first, batched to stay inside SQLite's
-  // variable limit.
+  // Bandwidth samples, oldest first, batched so each INSERT stays inside the
+  // server's placeholder limit and no single statement grows unbounded.
   let bandwidthRows = 0
   const totalSamples = options.historyDays * options.samplesPerDay
   const intervalMs = (24 * HOUR) / options.samplesPerDay
@@ -233,7 +218,7 @@ export async function buildPerfDataset(
   }
 
   logger.info(
-    { devices: deviceRows.length, bandwidthRows, connectionLogRows, databaseFile },
+    { devices: deviceRows.length, bandwidthRows, connectionLogRows, database },
     'performance dataset built'
   )
 
@@ -241,17 +226,17 @@ export async function buildPerfDataset(
     devices: deviceRows.length,
     bandwidthRows,
     connectionLogRows,
-    databaseFile,
+    database,
   }
 }
 
-// Entry point. `npm run perf:dataset` sets DB_FILE, so `run` is only reached
+// Entry point. `npm run perf:dataset` sets DB_NAME, so `run` is only reached
 // when the module is executed directly rather than imported by the harness.
 if (require.main === module) {
   buildPerfDataset()
     .then((summary) => {
       console.log(
-        `  dataset ready: ${summary.devices} devices, ${summary.bandwidthRows.toLocaleString()} bandwidth rows -> ${summary.databaseFile}`
+        `  dataset ready: ${summary.devices} devices, ${summary.bandwidthRows.toLocaleString()} bandwidth rows -> ${summary.database}`
       )
     })
     .catch((err) => {

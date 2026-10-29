@@ -20,8 +20,8 @@ function findSet<T extends string>(value: T | undefined): value is T {
  * Two things this gets right that the obvious implementation does not:
  *
  * 1. **Case-insensitive.** `LIKE` is case-sensitive on MySQL when the column
- *    collation is `utf8mb4_bin`-like, and case-insensitive on SQLite's default
- *    `BINARY` collation only by accident of ASCII. Users type `nas`, `NAS` and
+ *    collation is `utf8mb4_bin`-like, and users type `nas`, `NAS` and `Nas` interchangeably and expect
+ *    the same three results regardless of the server's collation. Users type `nas`, `NAS` and
  *    `Nas` interchangeably and expect the same three results. So the term is
  *    lowercased and the columns are lowercased to match, which is portable
  *    across both dialects without relying on either one's collation defaults.
@@ -208,18 +208,14 @@ export interface ScanDeviceInput {
   signalStrength?: number | null
 }
 
-function isMysql(): boolean {
-  return process.env.DB_CLIENT === 'mysql'
-}
-
 export async function upsertFromScan(input: ScanDeviceInput): Promise<void> {
   const now = new Date().toISOString()
 
-  // Upsert is spelled differently per dialect. Kysely's onConflict() emits
-  // SQLite/Postgres `on conflict (...) do update set`, which MySQL rejects with
-  // a parse error — it wants `on duplicate key update` and takes the conflict
-  // target from the unique key instead of naming a column. Every scan cycle
-  // goes through here, so this broke the entire device scan on MySQL.
+  // An upsert is spelled `on duplicate key update` on MySQL (and MariaDB,
+  // through the same wire protocol): the conflict target comes from the unique
+  // key rather than being named, and there is no `excluded` pseudo-table, so
+  // `values(col)` is the equivalent of `excluded.col`. Every scan cycle goes
+  // through here, so a mistake in this spelling breaks the entire device scan.
   const values = {
     ip_address: input.ipAddress,
     hostname: input.hostname,
@@ -228,27 +224,6 @@ export async function upsertFromScan(input: ScanDeviceInput): Promise<void> {
     status: 'online' as const,
     last_seen: now,
     updated_at: now,
-  }
-
-  if (isMysql()) {
-    await db
-      .insertInto('devices')
-      .values({
-        id: randomUUID(),
-        mac_address: input.macAddress.toUpperCase(),
-        ip_address: input.ipAddress,
-        hostname: input.hostname,
-        manufacturer: input.manufacturer,
-        signal_strength: input.signalStrength ?? null,
-        status: 'online',
-        first_seen: now,
-        last_seen: now,
-        created_at: now,
-        updated_at: now,
-      })
-      .onDuplicateKeyUpdate(values)
-      .execute()
-    return
   }
 
   await db
@@ -266,7 +241,7 @@ export async function upsertFromScan(input: ScanDeviceInput): Promise<void> {
       created_at: now,
       updated_at: now,
     })
-    .onConflict((oc) => oc.column('mac_address').doUpdateSet(values))
+    .onDuplicateKeyUpdate(values)
     .execute()
 }
 

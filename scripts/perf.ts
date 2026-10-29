@@ -10,14 +10,13 @@
  *   4. Stats fan-out at 100 devices  < 1s
  *
  * Every number printed is a real measurement from a real query. The report is
- * written to `doc/PERFORMANCE.md` with the dialect and dataset it came from,
+ * written to `doc/PERFORMANCE.md` with the engine and dataset it came from,
  * because a number without its conditions is not evidence.
  *
  * Usage:
- *   SQLite:  DB_FILE=./data/perf.db  npm run perf
- *   MySQL:   DB_NAME=home_monitor_perf            npm run perf
+ *   DB_NAME=home_monitor_perf            npm run perf
  *
- * Each dialect writes its own report, so benchmarking the second engine does
+ * Each engine writes its own report, so benchmarking the second engine does
  * not silently replace the first engine's numbers. `doc/PERFORMANCE.md` is the
  * index of all of them.
  */
@@ -108,7 +107,7 @@ async function measure(
 
 function formatMs(value: number): string {
   if (value >= 1_000) return `${(value / 1_000).toFixed(2)}s`
-  // Sub-0.1ms is real for an in-memory read; truncating it to "0.0ms" would
+  // Sub-0.1ms is real for a cheap indexed read; truncating it to "0.0ms" would
   // look like a placeholder rather than a measurement.
   if (value < 0.1) return `${value.toFixed(3)}ms`
   return `${value.toFixed(1)}ms`
@@ -119,9 +118,10 @@ function formatMs(value: number): string {
  *
  * Keyed on the **engine**, not on `DB_CLIENT`. `DB_CLIENT=mysql` names the
  * driver, and both MariaDB and MySQL arrive over it, so keying on the dialect
- * gave both runs the same filename and the second silently overwrote the first
- * — the precise failure this change existed to prevent. Caught by doing it:
- * benchmarking MariaDB 12.3 over MySQL 8.4 replaced the 8.4 numbers.
+ * gave both runs the same filename and the second silently overwrote the
+ * first — the precise failure this change existed to prevent. Caught by
+ * doing it: benchmarking MariaDB 12.3 over MySQL 8.4 replaced the 8.4
+ * numbers.
  *
  * Hence the dependency on `engineIdentity()` having already run.
  */
@@ -129,11 +129,9 @@ function reportPathFor(dialect: string, engineVersion: string): string {
   const lower = engineVersion.toLowerCase()
   const slug = lower.includes('mariadb')
     ? 'mariadb'
-    : lower.includes('sqlite')
-      ? 'sqlite'
-      : dialect === 'mysql'
-        ? 'mysql'
-        : dialect
+    : dialect === 'mysql'
+      ? 'mysql'
+      : dialect
   return path.resolve(process.cwd(), `doc/PERFORMANCE.${slug}.md`)
 }
 
@@ -141,18 +139,12 @@ function reportPathFor(dialect: string, engineVersion: string): string {
  * Asks the server what it actually is.
  *
  * `DB_CLIENT=mysql` names the driver, not the server, and both MariaDB and
- * MySQL arrive over it. A report that says "mysql" without saying which engine
- * produced it is the same class of claim as a tick in a checklist: accurate at
- * best, unverifiable at worst. The CI matrix has the same check for the same
- * reason. SQLite has no server, so its version is the library.
+ * MySQL arrive over it. A report that says "mysql" without saying which
+ * engine produced it is the same class of claim as a tick in a checklist:
+ * accurate at best, unverifiable at worst. The CI matrix has the same check
+ * for the same reason.
  */
-async function engineIdentity(dialect: string): Promise<{ version: string; detail: string }> {
-  if (dialect !== 'mysql') {
-    // No server to ask: SQLite is an in-process library, so the version that
-    // matters is the binding's.
-    return { version: 'SQLite (in-process)', detail: 'better-sqlite3' }
-  }
-
+async function engineIdentity(): Promise<{ version: string; detail: string }> {
   const result = await sql<{ version: string; comment: string }>`
     SELECT VERSION() AS version, @@version_comment AS comment
   `.execute(db)
@@ -171,7 +163,7 @@ function buildReport(args: {
   dataset: {
     devices: number
     bandwidthRows: number
-    databaseFile: string
+    database: string
     dialect: string
     engineVersion: string
     engineDetail: string
@@ -198,17 +190,15 @@ function buildReport(args: {
   lines.push(`| Devices | ${args.dataset.devices} |`)
   lines.push(`| Bandwidth samples | ${args.dataset.bandwidthRows.toLocaleString()} |`)
   lines.push(`| History per device | 30 days @ 15-minute resolution |`)
-  lines.push(`| Database | \`${args.dataset.databaseFile}\` |`)
+  lines.push(`| Database | \`${args.dataset.database}\` |`)
   lines.push('')
-  if (args.dataset.dialect === 'mysql') {
-    lines.push(
-      '`DB_CLIENT=mysql` names the driver, not the server: MariaDB and MySQL are both reached',
-      'through it. The **Engine** row above is the server\'s own answer to `VERSION()`, recorded by',
-      'this harness rather than asserted by hand, so these numbers cannot be filed under the wrong',
-      'engine.',
-      ''
-    )
-  }
+  lines.push(
+    '`DB_CLIENT=mysql` names the driver, not the server: MariaDB and MySQL are both reached',
+    'through it. The **Engine** row above is the server\'s own answer to `VERSION()`, recorded by',
+    'this harness rather than asserted by hand, so these numbers cannot be filed under the wrong',
+    'engine.',
+    ''
+  )
   lines.push('## Results')
   lines.push('')
   lines.push('| Measurement | Target | Median | p95 | Max | n | Verdict |')
@@ -251,8 +241,8 @@ function buildReport(args: {
   lines.push('  warm cache" is not evidenced by this file.')
   lines.push('- Numbers are from a single machine. Absolute values differ elsewhere; the')
   lines.push('  pass/fail gate is what carries across environments, not the milliseconds.')
-  lines.push('- MySQL numbers come from running this harness with `DB_CLIENT=mysql` against the')
-  lines.push('  Compose stack. The table records whichever dialect was used.')
+  lines.push('- Numbers come from running this harness against a MySQL-family server reached through')
+  lines.push('  the mysql2 driver. The **Engine** row records which server actually answered.')
   lines.push('')
   lines.push('## Observations')
   lines.push('')
@@ -290,7 +280,7 @@ async function main(): Promise<void> {
 
   if (deviceCount === 0) {
     throw new Error(
-      'No devices in the database. Build a dataset first: DB_FILE=./data/perf.db npm run perf:dataset'
+      'No devices in the database. Build a dataset first: DB_NAME=home_monitor_perf npm run perf:dataset'
     )
   }
 
@@ -372,17 +362,14 @@ async function main(): Promise<void> {
     )
   )
 
-  const engine = await engineIdentity(cfg.DB_CLIENT)
+  const engine = await engineIdentity()
 
   const report = buildReport({
     measurements,
     dataset: {
       devices: deviceCount,
       bandwidthRows,
-      databaseFile:
-        cfg.DB_CLIENT === 'mysql'
-          ? `${process.env.DB_HOST ?? 'localhost'}:${process.env.DB_PORT ?? 3306}/${process.env.DB_NAME ?? '(unset)'}`
-          : (process.env.DB_FILE ?? '(unset)'),
+      database: `${process.env.DB_HOST ?? 'localhost'}:${process.env.DB_PORT ?? 3306}/${process.env.DB_NAME ?? '(unset)'}`,
       dialect: cfg.DB_CLIENT,
       engineVersion: engine.version,
       engineDetail: engine.detail,

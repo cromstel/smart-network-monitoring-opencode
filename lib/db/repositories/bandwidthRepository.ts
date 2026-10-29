@@ -65,7 +65,7 @@ export async function listForDeviceBetween(
 
 /**
  * Latest network stats per device, one query for the whole batch.
- * The max(timestamp) subquery keeps the join dialect-safe (MySQL and SQLite).
+ * The max(timestamp) subquery keeps the join to one row per device.
  */
 export async function fetchStatsForDevices(
   deviceIds: string[]

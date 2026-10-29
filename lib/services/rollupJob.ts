@@ -13,19 +13,14 @@ import { sql, type RawBuilder } from 'kysely'
  * Two dialect differences are handled explicitly:
  *   - truncating a timestamp to the hour (`DATE_FORMAT` vs `strftime`),
  *   - summing a byte counter that is stored as TEXT. `CAST(... AS UNSIGNED)`
- *     is MySQL-only and `CAST(... AS INTEGER)` is SQLite-only, so the cast is
- *     chosen from `DB_CLIENT` rather than assumed.
+ *     is the only cast that does not wrap at 2^31, so it is used unconditionally.
  */
-
-function isMysql(): boolean {
-  return process.env.DB_CLIENT === 'mysql'
-}
 
 /**
  * Buckets an ISO-8601 timestamp column to its hour, per dialect.
  *
- * This used to be `DATE_FORMAT(col, '%Y-%m-%d %H:00:00')` on MySQL and
- * `strftime(...)` on SQLite, which assumed the column held a real DATETIME.
+ * This used to be `DATE_FORMAT(col, '%Y-%m-%d %H:00:00')`, which assumed
+ * the column held a real DATETIME.
  * It holds ISO-8601 text ("2026-09-29T15:05:00.000Z"), so MySQL coerced the
  * value and rejected it:
  *
@@ -43,16 +38,14 @@ function hourTrunc(col: 'timestamp'): RawBuilder<unknown> {
   return sql`SUBSTR(${sql.ref(col)}, 1, 13)`
 }
 
-/** Sums a TEXT-typed byte counter, per dialect. */
+/** Sums a TEXT-typed byte counter. `CAST(... AS UNSIGNED)` is the only cast
+ *  that does not wrap at 2^31, so it is used unconditionally. */
 function sumCounter(col: 'upload_total' | 'download_total'): RawBuilder<string> {
-  if (isMysql()) {
-    return sql<string>`CAST(SUM(CAST(${sql.ref(col)} AS UNSIGNED)) AS CHAR)`
-  }
-  return sql<string>`CAST(SUM(CAST(${sql.ref(col)} AS INTEGER)) AS TEXT)`
+  return sql<string>`CAST(SUM(CAST(${sql.ref(col)} AS UNSIGNED)) AS CHAR)`
 }
 
 /**
- * A fresh UUID **per output row**, per dialect.
+ * A fresh UUID **per output row**.
  *
  * This must be a SQL expression, not a JS `randomUUID()` embedded in the
  * template: kysely interpolates a JS value as a *literal*, so the whole
@@ -62,16 +55,9 @@ function sumCounter(col: 'upload_total' | 'download_total'): RawBuilder<string> 
  * dev network, where the job failed every single hour). SQL functions are
  * evaluated once per row, which is what this needs.
  *
- * The SQLite form builds the canonical 8-4-4-4-12 hex shape from randomblob;
- * `hex()` emits uppercase, hence the outer `lower()`.
  */
 function newUuidPerRow(): RawBuilder<string> {
-  if (isMysql()) {
-    return sql<string>`UUID()`
-  }
-  return sql<string>`lower(
-    hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(6))
-  )`
+  return sql<string>`UUID()`
 }
 
 function previousHourWindow(): { start: Date; end: Date } {
@@ -142,13 +128,10 @@ export async function rollupHourly(): Promise<number> {
 
   // Re-running for an hour already aggregated must update, not duplicate.
   //
-  // Both the clause and the "value that would have been inserted" reference are
-  // dialect-specific:
-  //   SQLite: on conflict (cols) do update set col = excluded.col
-  //   MySQL:  on duplicate key update col = values(col)
-  // MySQL has no `excluded` pseudo-table; `values(col)` is its equivalent and is
-  // accepted by MariaDB and MySQL 5.7/8.0 alike. Re-aggregating an hour is the
-  // normal case after a restart, so this path runs for real, not just at edges.
+  // MySQL has no `excluded` pseudo-table; `values(col)` is its equivalent and
+  // is accepted by MariaDB and MySQL 5.7/8.0 alike. Re-aggregating an hour is
+  // the normal case after a restart, so this path runs for real, not just at
+  // edges.
   const ROLLUP_COLUMNS = [
     'avg_upload_speed',
     'avg_download_speed',
@@ -159,28 +142,13 @@ export async function rollupHourly(): Promise<number> {
     'sample_count',
   ] as const
 
-  const result = isMysql()
-    ? await insert
-        .onDuplicateKeyUpdate(
-          Object.fromEntries(
-            ROLLUP_COLUMNS.map((col) => [col, sql`values(${sql.ref(col)})`])
-          ) as never
-        )
-        .executeTakeFirst()
-    : await insert
-        .onConflict((oc) =>
-          oc
-            .columns(['device_id', 'hour_start'])
-            .doUpdateSet(
-              Object.fromEntries(
-                ROLLUP_COLUMNS.map((col) => [
-                  col,
-                  (eb: { ref: (c: string) => unknown }) => eb.ref(`excluded.${col}`),
-                ])
-              ) as never
-            )
-        )
-        .executeTakeFirst()
+  const result = await insert
+    .onDuplicateKeyUpdate(
+      Object.fromEntries(
+        ROLLUP_COLUMNS.map((col) => [col, sql`values(${sql.ref(col)})`])
+      ) as never
+    )
+    .executeTakeFirst()
 
   const count = Number((result as { numInsertedOrUpdatedRows?: bigint | number })?.numInsertedOrUpdatedRows ?? 0)
   logger.info({ count, hourStart: start.toISOString() }, 'hourly rollup completed')

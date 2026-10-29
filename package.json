@@ -22,17 +22,17 @@
     "db:migrate": "ts-node -r tsconfig-paths/register --project tsconfig.node.json lib/db/migrate.ts",
     "db:migrate:down": "ts-node -r tsconfig-paths/register --project tsconfig.node.json lib/db/migrate.ts --down",
     "db:seed": "ts-node --project tsconfig.node.json scripts/seed.ts",
-    "db:seed:e2e": "cross-env DB_FILE=./data/e2e.db ts-node -r tsconfig-paths/register --project tsconfig.node.json scripts/e2e-seed.ts",
+    "db:seed:e2e": "cross-env DB_NAME=home_monitor_e2e ts-node -r tsconfig-paths/register --project tsconfig.node.json scripts/e2e-seed.ts",
     "db:reset:e2e": "node scripts/reset-e2e-db.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "hooks:install": "node scripts/git-hooks/install.mjs",
     "weekly-audit": "node scripts/weekly-audit-fix.mjs",
     "test:all": "npm run type-check && npm run test:coverage && npm run build",
-    "perf:dataset": "cross-env DB_FILE=./data/perf.db ts-node -r tsconfig-paths/register --project tsconfig.node.json scripts/perfDataset.ts",
-    "perf": "cross-env DB_FILE=./data/perf.db ts-node -r tsconfig-paths/register --project tsconfig.node.json scripts/perf.ts",
-    "soak": "cross-env NODE_OPTIONS=--expose-gc DB_FILE=./data/soak.db ts-node -r tsconfig-paths/register --project tsconfig.node.json scripts/soak.ts",
-    "perf:fcp": "cross-env DB_FILE=./data/fcp.db ts-node -r tsconfig-paths/register --project tsconfig.node.json scripts/fcp.ts"
+    "perf:dataset": "ts-node -r tsconfig-paths/register --project tsconfig.node.json scripts/perfDataset.ts",
+    "perf": "ts-node -r tsconfig-paths/register --project tsconfig.node.json scripts/perf.ts",
+    "soak": "cross-env NODE_OPTIONS=--expose-gc ts-node -r tsconfig-paths/register --project tsconfig.node.json scripts/soak.ts",
+    "perf:fcp": "ts-node -r tsconfig-paths/register --project tsconfig.node.json scripts/fcp.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
@@ -44,7 +44,6 @@
     "@tanstack/react-query-devtools": "^5.104.0",
     "@tanstack/react-table": "^9.2.4",
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^12.11.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "kysely": "^0.28.17",
@@ -67,7 +66,6 @@
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.0",
     "@types/bcryptjs": "^2.4.6",
-    "@types/better-sqlite3": "^7.6.11",
     "@types/jest": "^29.5.0",
     "@types/node": "^24.0.0",
     "@types/node-cron": "^3.0.11",
@@ -84,6 +82,11 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.2"
   },
+  "//perf-harnesses": [
+    "The perf, soak and FCP scripts take a throwaway database name through DB_NAME and",
+    "each refuses a reserved schema name, so no default is baked into the npm script:",
+    "DB_NAME=home_monitor_perf npm run perf, with the schema name of your choosing."
+  ],
   "//overrides": [
     "Next 15.5.26 pins postcss 8.4.31, which lands a nested copy that npm audit",
     "flags as high severity (XSS via unescaped </style> in stringify output, plus",

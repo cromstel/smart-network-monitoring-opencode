@@ -77,11 +77,13 @@ export function appName(): string {
  * one from the other would produce a schema called `home_network_monitor` for a
  * database the operator already named `home_monitor`, so the operator names it.
  *
- * Required: MySQL only. SQLite is no longer supported.
- * in one file (`DB_FILE`) and has no schema name. SQLite is removed: only
- * MySQL is supported, so `DB_NAME` is always required.
- * of `loadConfig`'s schema — that would make every SQLite deployment set a
- * variable nothing reads.
+ * Required: the application is MySQL/MariaDB-only, and a MySQL connection has
+ * no file to fall back on — the database is always a named schema, so `DB_NAME`
+ * is always required.
+ *
+ * It is checked here rather than left to `loadConfig`'s schema so the message
+ * names the variable and the fix; it was once part of that schema, which made a
+ * deployment set a variable nothing read.
  */
 export function requiredDbName(): string {
   return required('DB_NAME', process.env.DB_NAME)

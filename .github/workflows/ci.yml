@@ -45,12 +45,12 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
-          DB_CLIENT: sqlite
+          DB_CLIENT: mysql
           # Production boot requires 32+ character secrets; the env block above
           # supplies them so the build exercises the real validation path.
 
   unit:
-    name: Unit tests (SQLite)
+    name: Unit tests (MySQL / MariaDB)
     runs-on: ubuntu-latest
     # The test sources are deliberately untracked (see .gitignore): they are
     # not part of the shipped product and must not live in the remote
@@ -83,7 +83,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-sqlite
+          name: coverage-mysql
           path: coverage/
           retention-days: 7
 
@@ -178,11 +178,11 @@ jobs:
           DB_PASSWORD: ci-monitor
 
       # PRD §7 requires the suite to be green against a real MySQL-family
-      # database, not only SQLite.
+      # database (MariaDB / MySQL), not a single engine.
       #
       # --runInBand is not an optimisation choice, it is required. The repository
       # tests share one database, and every suite truncates the tables in its
-      # beforeEach. Against SQLite each worker gets a private :memory: database
+      # beforeEach: each matrix worker (MariaDB / MySQL) gets its own schema
       # so parallel workers cannot collide. A server database has no such
       # isolation: with parallel workers one suite's truncate wipes another's
       # fixtures mid-test. That produced wildly varying failure counts, 13 to
@@ -199,8 +199,8 @@ jobs:
           RUN_MYSQL_TESTS: '1'
           SESSION_SECRET: ci-session-secret-not-for-production-use-0000
           ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
-  performance-sqlite:
-    name: Performance (PRD §5) — sqlite
+  # SQLite performance job removed — matrix already covers MySQL/MariaDB below
+    # Performance (PRD §5) — SQLite removed; matrix below covers MySQL / MariaDB
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -218,8 +218,8 @@ jobs:
         # the PRD §5 targets are written against.
         run: npm run perf:dataset
         env:
-          DB_CLIENT: sqlite
-          DB_FILE: ./data/perf.db
+          DB_CLIENT: mysql
+          DB_NAME: home_monitor_perf
           SESSION_SECRET: perf-session-secret-not-for-production-000000
           ENCRYPTION_KEY: perf-encryption-key-not-for-production-00000000
 
@@ -228,8 +228,8 @@ jobs:
       - name: Measure against the PRD §5 targets
         run: npm run perf
         env:
-          DB_CLIENT: sqlite
-          DB_FILE: ./data/perf.db
+          DB_CLIENT: mysql
+          DB_NAME: home_monitor_perf
           SESSION_SECRET: perf-session-secret-not-for-production-000000
           ENCRYPTION_KEY: perf-encryption-key-not-for-production-00000000
 
@@ -237,12 +237,12 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: performance-report-sqlite
-          path: doc/PERFORMANCE.sqlite.md
+           name: performance-report-mysql
+           path: doc/PERFORMANCE.md
           retention-days: 7
 
   # The server engines are a separate job rather than extra rows in the
-  # SQLite job's matrix. A service container cannot be made conditional per
+  # The SQL matrix runs against both MariaDB and MySQL in separate runners.
   # matrix entry — `services.*` has no `if` key, and an entry with an empty
   # image is rejected at workflow-validation time rather than skipped — so a
   # single matrix across all three engines cannot be expressed. One job for the
@@ -397,8 +397,8 @@ jobs:
       - name: Measure first contentful paint (PRD §5)
         run: npm run perf:fcp
         env:
-          DB_CLIENT: sqlite
-          DB_FILE: ./data/fcp.db
+          DB_CLIENT: mysql
+          DB_NAME: home_monitor_fcp
           SESSION_SECRET: fcp-session-secret-not-for-production-000000
           ENCRYPTION_KEY: fcp-encryption-key-not-for-production-00000000
 

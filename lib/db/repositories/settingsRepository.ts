@@ -5,7 +5,7 @@ import type { UserSettings, RouterConfig } from '@/lib/types'
 /**
  * User settings and router configuration.
  *
- * SQLite is opened with `defaultSafeIntegers(true)`, so every INTEGER column
+ * MySQL returns integer columns as numbers; the mapper normalises
  * arrives as a `bigint`. These mappers normalise with `Number(...)`, matching
  * `mappers.ts`. Without that conversion a setting reads back as `60n` and
  * `row.notify_new_devices === 1` is false, because `1n !== 1` — every toggle

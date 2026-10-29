@@ -117,11 +117,11 @@ export async function up(db: Kysely<any>): Promise<void> {
   if (!(await tableExists(db, 'device_blocks'))) {
     await db.schema
       .createTable('device_blocks')
-      .addColumn('id', 'uuid', (col: any) => col.primaryKey().notNull())
-      .addColumn('device_id', 'uuid', (col: any) => col.notNull().references('devices.id').onDelete('cascade'))
+      .addColumn('id', 'varchar(36)', (col: any) => col.primaryKey().notNull())
+      .addColumn('device_id', 'varchar(36)', (col: any) => col.notNull().references('devices.id').onDelete('cascade'))
       .addColumn('website_app', 'varchar(255)', (col: any) => col.notNull())
       .addColumn('is_active', 'integer', (col: any) => col.defaultTo(1).notNull())
-      .addColumn('created_by', 'uuid', (col: any) => col.notNull().references('users.id'))
+      .addColumn('created_by', 'varchar(36)', (col: any) => col.notNull().references('users.id'))
       .addColumn('created_at', 'varchar(64)', (col: any) => col.notNull())
       .execute()
   }
@@ -133,7 +133,7 @@ export async function up(db: Kysely<any>): Promise<void> {
   if (!(await tableExists(db, 'email_providers'))) {
     await db.schema
       .createTable('email_providers')
-      .addColumn('id', 'uuid', (col: any) => col.primaryKey().notNull())
+      .addColumn('id', 'varchar(36)', (col: any) => col.primaryKey().notNull())
       .addColumn('provider_name', 'varchar(100)', (col: any) => col.notNull())
       .addColumn('smtp_host', 'varchar(255)', (col: any) => col.notNull())
       .addColumn('smtp_port', 'integer', (col: any) => col.notNull())
@@ -150,9 +150,9 @@ export async function up(db: Kysely<any>): Promise<void> {
   if (!(await tableExists(db, 'vulnerability_alerts'))) {
     await db.schema
       .createTable('vulnerability_alerts')
-      .addColumn('id', 'uuid', (col: any) => col.primaryKey().notNull())
-      .addColumn('user_id', 'uuid', (col: any) => col.notNull().references('users.id'))
-      .addColumn('device_id', 'uuid', (col: any) => col.references('devices.id').onDelete('cascade'))
+      .addColumn('id', 'varchar(36)', (col: any) => col.primaryKey().notNull())
+      .addColumn('user_id', 'varchar(36)', (col: any) => col.notNull().references('users.id'))
+      .addColumn('device_id', 'varchar(36)', (col: any) => col.references('devices.id').onDelete('cascade'))
       .addColumn('vulnerability_type', 'varchar(100)', (col: any) => col.notNull())
       .addColumn('severity', 'varchar(20)', (col: any) => col.notNull())
       .addColumn('message', 'text', (col: any) => col.notNull())

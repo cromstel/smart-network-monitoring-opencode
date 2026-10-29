@@ -1,5 +1,5 @@
 ﻿# Local MariaDB for development, and the same engine the CI test leg uses.
-# Only MySQL (MariaDB) is supported — SQLite has been removed.
+# Only MySQL/MariaDB is supported.
 #
 # MariaDB, not MySQL. The deployed database is MariaDB 12.3, and the two
 # engines differ in ways this application has already been bitten by: MariaDB
@@ -11,7 +11,7 @@
 # DB_CLIENT stays `mysql` everywhere below. That is the application's name for
 # the *driver and dialect* (Kysely's MysqlDialect via mysql2), not the name of
 # the server. MariaDB speaks the same wire protocol and is reached through it.
-# `lib/config.ts` validates DB_CLIENT as 'mysql' — SQLite removed.
+# `lib/config.ts` validates DB_CLIENT as 'mysql' — the only value it accepts.
 #
 # The credentials are required, not defaulted. This file previously carried
 # ${DB_PASSWORD:-monitor}, so a container started without a .env would come up
@@ -38,8 +38,6 @@ services:
       # development quietly disagree with production. The image is pinned to a
       # minor series so the default cannot drift underneath us.
       - --character-set-server=utf8mb4
-    volumes:
-      - mariadb-data:/var/lib/mysql
     healthcheck:
       # healthcheck.sh ships with the MariaDB image and knows when the server
       # is genuinely ready, which `mysqladmin ping` does not: it can succeed
@@ -62,11 +60,9 @@ services:
         # variable (`PORT`) so the two cannot disagree â€” a build arg of 8080
         # with a mapping of 9090 would publish a port nothing is listening on.
         PORT: ${PORT:-9090}
-        # Not used: SQLite removed. Only MySQL (MariaDB via mysql2) is supported.
         # white-labelled deployment gets its own file instead of writing into
         # one named after this product. Path separators and spaces are stripped
         # because this becomes a filename, not a display string.
-        DB_FILE_NAME: ${DB_FILE_NAME:-app.db}
     restart: unless-stopped
     depends_on:
       mariadb:
@@ -92,8 +88,6 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
     ports:
       - "${PORT:-9090}:${PORT:-9090}"
-    volumes:
-      - app-data:/data
     # Grants raw sockets so the ARP scanner works. Without it the app falls
     # back to the simulated scanner and logs a warning every cycle.
     cap_add:
@@ -101,4 +95,3 @@ services:
 
 volumes:
   mariadb-data:
-  app-data:

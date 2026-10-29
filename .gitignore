@@ -15,7 +15,7 @@ next-env.d.ts.orig
 .env*
 !.env.example
 
-# local data (SQLite dev database and seed data)
+# local data (seed output and generated databases)
 data/
 *.db
 *.db-journal

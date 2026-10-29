@@ -8,7 +8,8 @@
   The conditional gate matters: this machine runs several concurrent agents
   whose npm installs would break if their content-addressed cache were wiped
   on a schedule; deletion happens only when ENOSPC would otherwise kill the
-  soak (SQLite writes fail on a full disk).
+  soak (the server stops writing, and the soak's own log and the WAL/binlog
+  files stop growing, which is what eventually takes the box down).
 #>
 param([int]$ThresholdMB = 600)
 

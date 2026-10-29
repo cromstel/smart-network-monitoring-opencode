@@ -4,12 +4,9 @@
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 
-# better-sqlite3 and node-cron need a toolchain if a prebuilt binary is
-# unavailable for the platform.
-RUN apt-get update \
- && apt-get install -y --no-install-recommends python3 make g++ ca-certificates \
- && rm -rf /var/lib/apt/lists/*
-
+# The dependency set is pure JavaScript — mysql2, kysely, bcryptjs, pino and
+# the rest all ship prebuilt — so `npm ci` compiles nothing and needs no
+# toolchain. ca-certificates is kept because npm itself talks TLS.
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -59,22 +56,19 @@ RUN apt-get update \
 
 ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
-    DB_CLIENT=sqlite \
     SCANNER_MODE=arp \
     SCANNER_INTERVAL_SECONDS_UNUSED=0
 
-# The listen port, and the name of the SQLite file inside the volume.
+# The listen port is an `ARG` so the built image carries no frozen port, and so
+# the healthcheck, the EXPOSE and the server cannot disagree about it.
 #
-# Both are `ARG`s so the built image carries neither a frozen port nor the
-# build host's product name: `docker build --build-arg DB_FILE_NAME=acme.db`
-# produces an image whose database is `acme.db`. The earlier literal
-# `/data/smart-network-monitor.db` embedded one deployment's name in every
-# copy of the image, which is the hardcoding `APP_NAME` was introduced to
-# remove — it had simply moved into a filename.
+# There is no `DB_CLIENT` default and no database file: MySQL/MariaDB only,
+# and the connection identity (DB_HOST, DB_NAME, DB_USER, DB_PASSWORD) is
+# deployment configuration supplied at run time. Baking a database name into
+# the image would be the same hardcoding `APP_NAME` was introduced to remove,
+# with the product's name merely moved from a filename into a schema name.
 ARG PORT=9090
-ARG DB_FILE_NAME=app.db
-ENV PORT=${PORT} \
-    DB_FILE=/data/${DB_FILE_NAME}
+ENV PORT=${PORT}
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
@@ -93,9 +87,10 @@ COPY --from=build /app/instrumentation.ts ./instrumentation.ts
 # the image for no reason.
 COPY --from=build /app/lib/config/ports.ts ./lib/config/ports.ts
 
-# Persist the SQLite database outside the image layer.
-RUN mkdir -p /data && chown -R node:node /data /app
-VOLUME ["/data"]
+# Nothing in the image writes to /data any more — the database lives on the
+# MySQL/MariaDB server named by the runtime environment — so there is no
+# volume to declare and no directory to own beyond the app itself.
+RUN chown -R node:node /app
 
 USER node
 EXPOSE ${PORT}

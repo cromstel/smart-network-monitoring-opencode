@@ -3,6 +3,9 @@
  * the browser suite can sign in. Never use this script outside the E2E run —
  * `scripts/seed.ts` is the development one and deliberately has no usable
  * password.
+ *
+ * Usage (the schema must be a throwaway, and is never defaulted):
+ *   DB_NAME=home_monitor_e2e npm run db:seed:e2e
  */
 import { randomUUID } from 'node:crypto'
 import { db } from '../lib/db/client'
@@ -10,6 +13,7 @@ import { runMigrations } from '../lib/db/migrator'
 import { hashPassword } from '../lib/utils/crypto'
 import { logger } from '../lib/utils/logger'
 import { e2eAccounts } from '../lib/config/e2eAccounts'
+import { RESERVED_DB_NAMES } from '../lib/config/app'
 import type { DeviceType } from '../lib/types'
 
 /**
@@ -46,13 +50,31 @@ function iso(msAgo: number): string {
 }
 
 async function run(): Promise<void> {
-  // Refuse to run against anything but a throwaway database. Without this
-  // guard the script silently writes to ./data/dev.db whenever DB_FILE is
-  // unset, and the known-password admin lands in the developer's real data.
-  const dbFile = process.env.DB_FILE ?? ''
-  if (!dbFile || dbFile === './data/dev.db' || dbFile === 'data/dev.db') {
+  // Refuse to run against anything but a throwaway schema. This script writes
+  // accounts with a *known* password, so pointing it at the developer's real
+  // database would leave those credentials usable against real data. The
+  // guard used to name a file path; the schema name is the MySQL equivalent,
+  // so it guards `DB_NAME` and there is no fallback for it to default to.
+  const schema = process.env.DB_NAME ?? ''
+  if (!schema) {
     throw new Error(
-      `Refusing to seed: set DB_FILE to a dedicated test database, e.g. DB_FILE=./data/e2e.db. Got ${JSON.stringify(dbFile || '(unset)')}.`
+      'Refusing to seed: set DB_NAME to a dedicated test schema, e.g. DB_NAME=home_monitor_e2e. ' +
+        'Got (unset).'
+    )
+  }
+  // Same intent as the `dev.db` check this replaced: a name that looks like it
+  // could be the real one is refused outright, and the name must say it is
+  // disposable. The reserved list lives beside the naming rules in
+  // `lib/config/app.ts` so this and the rest of the codebase cannot disagree
+  // about which names are reserved.
+  if (RESERVED_DB_NAMES.some((reserved) => reserved.toLowerCase() === schema.toLowerCase())) {
+    throw new Error(
+      `Refusing to seed: schema "${schema}" looks like the live database. Point DB_NAME at a scratch schema.`
+    )
+  }
+  if (!/(_test|_perf|perf_|_e2e|_scratch)/i.test(schema)) {
+    throw new Error(
+      `Refusing to seed: schema "${schema}" does not look like a throwaway. Use a schema such as home_monitor_e2e.`
     )
   }
 
@@ -60,7 +82,7 @@ async function run(): Promise<void> {
 
   const existing = await db.selectFrom('users').select('id').executeTakeFirst()
   if (existing) {
-    logger.info('e2e database already seeded')
+    logger.info('e2e schema already seeded')
     return
   }
 

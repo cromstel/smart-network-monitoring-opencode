@@ -31,7 +31,7 @@
  * gate like `scripts/perf.ts` rather than a report nobody reads.
  *
  * Usage:
- *   DB_CLIENT=sqlite DB_FILE=./data/fcp.db npm run build && npm run perf:fcp
+ *   DB_NAME=home_monitor_fcp npm run build && npm run perf:fcp
  */
 
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -57,8 +57,13 @@ const WARMUP_LOADS = 2
 const EMAIL = process.env.FCP_EMAIL ?? e2eAccount('ADMIN').email
 const PASSWORD = process.env.FCP_PASSWORD ?? e2eAccount('ADMIN').password
 
-/** Named in error messages, because "login failed" is not a usable diagnosis. */
-const DB_FILE_LABEL = process.env.DB_FILE ?? '(DB_FILE unset)'
+/**
+ * The schema being measured, named in error messages because "login failed" is
+ * not a usable diagnosis. Recorded rather than derived so the message says
+ * exactly which database was pointed at.
+ */
+const DB_LABEL =
+  `${process.env.DB_HOST ?? 'localhost'}:${process.env.DB_PORT ?? 3306}/${process.env.DB_NAME ?? '(unset)'}`
 
 interface Sample {
   label: string
@@ -338,11 +343,11 @@ async function main(): Promise<void> {
         const seeded = await seedAdminDirectly()
         if (!seeded) {
           throw new Error(
-            `${DB_FILE_LABEL} has an admin account that ${EMAIL} cannot log into, and one could ` +
+            `${DB_LABEL} has an admin account that ${EMAIL} cannot log into, and one could ` +
               'not be added. Point the harness at an empty database, or set FCP_EMAIL/FCP_PASSWORD.'
           )
         }
-        console.log(`  (added a loginable admin to ${DB_FILE_LABEL}; a user already existed)`)
+        console.log(`  (added a loginable admin to ${DB_LABEL}; a user already existed)`)
       }
     }
     if (!setup.ok && setup.status !== 409) {

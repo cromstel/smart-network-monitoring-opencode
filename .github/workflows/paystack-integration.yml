@@ -60,7 +60,7 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
-          DB_CLIENT: sqlite
+          DB_CLIENT: mysql
 
       # The billing assertions live in the settings service suite alongside the
       # defaults round-trip, the partial-patch rules and per-user isolation, so

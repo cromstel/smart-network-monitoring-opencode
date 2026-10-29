@@ -7,8 +7,11 @@ const booleanFromEnv = z
   .transform((v) => v === undefined ? undefined : v === 'true')
 
 const envSchema = z.object({
+  // The only value the application has ever accepted since SQLite was
+  // removed. It names the *driver and dialect* (Kysely's MysqlDialect over
+  // mysql2), not the server: MariaDB and MySQL are both reached through it,
+  // and both are deployed.
   DB_CLIENT: z.enum(['mysql']).default('mysql'),
-  DB_FILE: z.string().optional(),
   DB_HOST: z.string().default('localhost'),
   // The MySQL default port. Overridable, and `mysql` itself is a fixed protocol
   // fact rather than a project choice, so one documented default is correct.
