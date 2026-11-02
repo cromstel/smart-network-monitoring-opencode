@@ -238,13 +238,13 @@ function StatCard({
 }) {
   return (
     <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/50 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between">
         <div>
           <p className="text-base text-slate-800 dark:text-slate-100 font-medium">{label}</p>
           <p className="mt-1 text-lg md:text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">{value}</p>
-          {subLabel && <p className="mt-1 text-base text-slate-800 dark:text-slate-100">{subLabel}</p>}
+          {subLabel && <p className="mt-1 text-sm text-slate-800 dark:text-slate-100">{subLabel}</p>}
         </div>
-        <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-800/50">{icon}</div>
+        <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-800/50 self-start">{icon}</div>
       </div>
     </div>
   )
