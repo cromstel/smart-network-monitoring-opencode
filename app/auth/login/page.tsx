@@ -10,6 +10,11 @@ const revealCSS = `
     from { opacity: 0; transform: translateY(18px); }
     to   { opacity: 1; transform: translateY(0); }
   }
+  @keyframes radarSweep {
+    0%   { background-position: 0% 50%; opacity: 0.1; }
+    50%  { background-position: 100% 0%; opacity: 0.25; }
+    100% { background-position: 0% 50%; opacity: 0.1; }
+  }
   .reveal { animation: revealUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .reveal-d1 { animation-delay: 0.1s; }
   .reveal-d2 { animation-delay: 0.2s; }
@@ -25,6 +30,15 @@ export default function LoginPage() {
       className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#070d1a] px-6 py-20 sm:px-10"
       style={{ fontFamily: inter.style.fontFamily }}
     >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-[-1] bg-[length:300%_300%] bg-[radial-gradient(circle_at_50%_35%,_rgba(74,222,128,0.28),_transparent_60%)] animate-[radarSweep_6s_linear_infinite]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-[-1] bg-[length:300%_300%] bg-[radial-gradient(circle_at_50%_65%,_rgba(163,230,53,0.20),_transparent_60%)] animate-[radarSweep_6s_linear_infinite]"
+      />
+
       {/* Geometric atmospheric mesh */}
       <div
         aria-hidden="true"

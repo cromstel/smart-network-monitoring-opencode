@@ -88,8 +88,9 @@ export function DashboardShell({
     <div className="flex min-h-screen flex-col md:flex-row">
       <ThemeSync theme={theme} />
       <aside className="flex shrink-0 flex-col border-b border-slate-200 dark:border-slate-800 p-4 md:w-56 md:border-b-0 md:border-r">
-        <Link href="/" className="block px-3 py-2 text-sm font-semibold text-slate-900 dark:text-slate-200">
-          {appName}
+        <Link href="/" className="flex items-center gap-2 px-3 py-2">
+          <img src="/logo.avif" alt="" className="h-6 w-6 rounded-md object-contain" aria-hidden />
+          <span className="text-sm font-semibold text-slate-900 dark:text-slate-200">{appName}</span>
         </Link>
         <nav className="mt-4 flex gap-1 overflow-x-auto md:mt-6 md:block md:space-y-1">
           {NAV.map((item) => {
