@@ -22,7 +22,7 @@ export default async function NotificationsPage() {
       <ul className="divide-y divide-slate-200 dark:divide-slate-800 space-y-3">
         {notifications.map((n: any) => (
           <li key={n.id}>
-            <article className="rounded-xl bg-white dark:bg-slate-950 p-5 shadow-sm border border-slate-100 dark:border-slate-900">
+            <article className="rounded-none bg-white dark:bg-slate-950 p-5 shadow-sm border border-slate-100 dark:border-slate-900">
               <h2 className="font-semibold text-slate-800 dark:text-slate-100">{n.title}</h2>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{n.message}</p>
               <time className="mt-3 block text-xs text-slate-400">{n.time}</time>
