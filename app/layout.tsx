@@ -42,6 +42,10 @@ export function generateMetadata(): Metadata {
   return {
     title: name,
     description: `Discover and monitor every device on your local network with ${name}.`,
+    icons: {
+      icon: [{ url: '/favicon.ico', sizes: 'any', type: 'image/x-icon' }],
+      apple: '/favicon.ico',
+    },
   }
 }
 
