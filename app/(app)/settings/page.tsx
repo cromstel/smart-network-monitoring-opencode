@@ -224,7 +224,7 @@ export default function SettingsPage() {
     <section className="max-w-2xl space-y-8">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-slate-400">Per-account preferences. Only admins can change them.</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Per-account preferences. Only admins can change them.</p>
         <nav className="mt-3 flex gap-2 border-b border-slate-800 pb-1">
           {(['general', 'router', 'paystack', 'smtp'] as const).map((t) => (
             <button
@@ -233,7 +233,7 @@ export default function SettingsPage() {
               onClick={() => setTab(t)}
               className={
                 'px-3 py-1.5 text-sm font-medium rounded-t-md transition-colors ' +
-                (tab === t ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60')
+                (tab === t ? 'bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900/60')
               }
             >
               {t === 'general' ? 'General' : t === 'router' ? 'Router' : t === 'paystack' ? 'Billing' : 'SMTP'}
@@ -248,7 +248,7 @@ export default function SettingsPage() {
             e.preventDefault()
             if (Object.keys(form).length > 0) save.mutate(form)
           }}
-          className="space-y-6 rounded-lg border border-slate-800 bg-slate-950/50 p-5"
+          className="space-y-6 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/50 p-5"
         >
           <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm text-slate-300">
@@ -257,7 +257,7 @@ export default function SettingsPage() {
               value={value('networkSubnet') ?? ''}
               onChange={(e) => setForm((f) => ({ ...f, networkSubnet: e.target.value }))}
               placeholder="192.168.1.0/24"
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
             />
           </label>
 
@@ -271,7 +271,7 @@ export default function SettingsPage() {
               onChange={(e) =>
                 setForm((f) => ({ ...f, scanIntervalSeconds: Number(e.target.value) }))
               }
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
             />
           </label>
 
@@ -285,7 +285,7 @@ export default function SettingsPage() {
               onChange={(e) =>
                 setForm((f) => ({ ...f, dataRetentionDays: Number(e.target.value) }))
               }
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
             />
           </label>
 
@@ -298,7 +298,7 @@ export default function SettingsPage() {
               onChange={(e) =>
                 setForm((f) => ({ ...f, bandwidthThreshold: Number(e.target.value) }))
               }
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
             />
           </label>
 
@@ -307,7 +307,7 @@ export default function SettingsPage() {
             <select
               value={value('theme') ?? 'dark'}
               onChange={(e) => setForm((f) => ({ ...f, theme: e.target.value as Settings['theme'] }))}
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
             >
               <option value="dark">Dark</option>
               <option value="light">Light</option>
@@ -387,7 +387,7 @@ export default function SettingsPage() {
             password: routerForm.password,
           })
         }}
-        className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/50 p-5"
+        className="space-y-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/50 p-5"
       >
         <fieldset className="space-y-4">
           <legend className="text-sm font-medium text-slate-300">Router (ASUS) — optional</legend>
@@ -403,7 +403,7 @@ export default function SettingsPage() {
               <select
                 value={routerForm.routerType}
                 onChange={(e) => setRouterForm((f) => ({ ...f, routerType: e.target.value }))}
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               >
                 <option value="asus">ASUS</option>
                 <option value="tplink">TP-Link</option>
@@ -418,7 +418,7 @@ export default function SettingsPage() {
                 value={routerForm.routerIp}
                 onChange={(e) => setRouterForm((f) => ({ ...f, routerIp: e.target.value }))}
                 placeholder="192.168.1.1"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               />
             </label>
 
@@ -430,7 +430,7 @@ export default function SettingsPage() {
                 max={65535}
                 value={routerForm.port}
                 onChange={(e) => setRouterForm((f) => ({ ...f, port: e.target.value }))}
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               />
             </label>
 
@@ -440,7 +440,7 @@ export default function SettingsPage() {
                 value={routerForm.username}
                 onChange={(e) => setRouterForm((f) => ({ ...f, username: e.target.value }))}
                 placeholder="admin"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               />
             </label>
 
@@ -454,7 +454,7 @@ export default function SettingsPage() {
                 placeholder={
                   routerConfig.data?.data ? 'Stored — type to replace' : 'Router admin password'
                 }
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               />
             </label>
           </div>
@@ -517,7 +517,7 @@ export default function SettingsPage() {
           }
           savePaystack.mutate(payload)
         }}
-        className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/50 p-5"
+        className="space-y-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/50 p-5"
       >
         <fieldset className="space-y-4">
           <legend className="text-sm font-medium text-slate-300">PayStack billing — optional</legend>
@@ -534,7 +534,7 @@ export default function SettingsPage() {
                 onChange={(e) => setPaystackForm((f) => ({ ...f, apiUrl: e.target.value }))}
                 placeholder="https://api.paystack.co"
                 inputMode="url"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               />
             </label>
 
@@ -544,7 +544,7 @@ export default function SettingsPage() {
                 value={paystackForm.subscriptionId}
                 onChange={(e) => setPaystackForm((f) => ({ ...f, subscriptionId: e.target.value }))}
                 placeholder="SUB_xxxxxxxx"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               />
             </label>
 
@@ -556,7 +556,7 @@ export default function SettingsPage() {
                 value={paystackForm.secret}
                 onChange={(e) => setPaystackForm((f) => ({ ...f, secret: e.target.value }))}
                 placeholder="Enter PayStack secret key"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               />
             </label>
 
@@ -568,7 +568,7 @@ export default function SettingsPage() {
                 value={paystackForm.accessToken}
                 onChange={(e) => setPaystackForm((f) => ({ ...f, accessToken: e.target.value }))}
                 placeholder="Bearer token"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               />
             </label>
           </div>
@@ -629,7 +629,7 @@ export default function SettingsPage() {
           }
           saveSmtp.mutate(payload)
         }}
-        className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/50 p-5"
+        className="space-y-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/50 p-5"
       >
         <fieldset className="space-y-4">
           <legend className="text-sm font-medium text-slate-300">SMTP email provider � admin only</legend>
@@ -649,7 +649,7 @@ export default function SettingsPage() {
                     return p ? { ...f, preset: presetId, providerName: p.name, smtpHost: p.host, smtpPort: p.port, smtpUser: p.user || '', smtpPass: '', isDefault: false } : { ...f, preset: 'custom' };
                   });
                 }}
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               >
                 <option value="">Select a provider...</option>
                 <option value="gmail">Gmail</option>
@@ -666,7 +666,7 @@ export default function SettingsPage() {
                 value={smtpForm.providerName}
                 onChange={(e) => setSmtpForm((f) => ({ ...f, providerName: e.target.value }))}
                 placeholder="Custom provider name"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               />
             </label>
             <label className="block text-sm text-slate-300">
@@ -675,7 +675,7 @@ export default function SettingsPage() {
                 value={smtpForm.smtpHost}
                 onChange={(e) => setSmtpForm((f) => ({ ...f, smtpHost: e.target.value }))}
                 placeholder="smtp.gmail.com"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               />
             </label>
             <label className="block text-sm text-slate-300">
@@ -687,7 +687,7 @@ export default function SettingsPage() {
                 value={smtpForm.smtpPort ?? ''}
                 onChange={(e) => setSmtpForm((f) => ({ ...f, smtpPort: e.target.value ? Number(e.target.value) : 587 }))}
                 placeholder="587"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               />
             </label>
             <label className="block text-sm text-slate-300 flex items-center gap-2">
@@ -705,7 +705,7 @@ export default function SettingsPage() {
                 value={smtpForm.smtpUser}
                 onChange={(e) => setSmtpForm((f) => ({ ...f, smtpUser: e.target.value }))}
                 placeholder="user@example.com"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               />
             </label>
             <label className="block text-sm text-slate-300 col-span-full">
@@ -716,7 +716,7 @@ export default function SettingsPage() {
                 value={smtpForm.smtpPass}
                 onChange={(e) => setSmtpForm((f) => ({ ...f, smtpPass: e.target.value }))}
                 placeholder="App password / token"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               />
             </label>
           </div>

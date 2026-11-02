@@ -87,8 +87,8 @@ export function DashboardShell({
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <ThemeSync theme={theme} />
-      <aside className="flex shrink-0 flex-col border-b border-slate-800 p-4 md:w-56 md:border-b-0 md:border-r">
-        <Link href="/" className="block px-3 py-2 text-sm font-semibold text-slate-200">
+      <aside className="flex shrink-0 flex-col border-b border-slate-200 dark:border-slate-800 p-4 md:w-56 md:border-b-0 md:border-r">
+        <Link href="/" className="block px-3 py-2 text-sm font-semibold text-slate-900 dark:text-slate-200">
           {appName}
         </Link>
         <nav className="mt-4 flex gap-1 overflow-x-auto md:mt-6 md:block md:space-y-1">
@@ -102,8 +102,8 @@ export function DashboardShell({
                 className={[
                   'block whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors',
                   active
-                    ? 'bg-slate-800 text-slate-100'
-                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200',
+                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-slate-200',
                 ].join(' ')}
               >
                 {item.label}
@@ -115,11 +115,11 @@ export function DashboardShell({
         <div className="mt-auto space-y-3 px-1 pt-4">
           {user && (
             <div className="border-t border-slate-800 pt-3">
-              <p className="truncate text-xs font-medium text-slate-300">
+              <p className="truncate text-xs font-medium text-slate-800 dark:text-slate-300">
                 {user.name || user.email}
               </p>
-              <p className="truncate text-[11px] text-slate-500">{user.email}</p>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+              <p className="truncate text-[11px] text-slate-600 dark:text-slate-500">{user.email}</p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-600">
                 {user.role}
               </p>
             </div>
@@ -129,11 +129,11 @@ export function DashboardShell({
             <span
               className={[
                 'h-2 w-2 shrink-0 rounded-full',
-                isConnected ? 'bg-emerald-500' : 'bg-slate-600',
+                isConnected ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-600',
               ].join(' ')}
               aria-hidden
             />
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-slate-600 dark:text-slate-500">
               {isConnected ? 'Live' : 'Reconnecting…'}
             </span>
           </div>
@@ -141,7 +141,7 @@ export function DashboardShell({
           <button
             type="button"
             onClick={signOut}
-            className="w-full rounded-md px-2 py-1 text-left text-sm text-slate-500 transition-colors hover:bg-slate-900 hover:text-slate-300"
+            className="w-full rounded-md px-2 py-1 text-left text-sm text-slate-600 dark:text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-slate-300"
           >
             Sign out
           </button>
