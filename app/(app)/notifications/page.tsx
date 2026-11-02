@@ -14,7 +14,7 @@ export default async function NotificationsPage() {
   ]
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10 md:py-12">
+    <main className="px-4 py-6 md:py-8">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">Notifications</h1>
         <Link href="/" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100">Back to dashboard</Link>
