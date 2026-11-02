@@ -241,7 +241,7 @@ function StatCard({
       <div className="flex items-center justify-between">
         <div>
           <p className="text-base text-slate-800 dark:text-slate-100 font-medium">{label}</p>
-          <p className="mt-1 text-2xl md:text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">{value}</p>
+          <p className="mt-1 text-xl md:text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">{value}</p>
           {subLabel && <p className="mt-1 text-base text-slate-800 dark:text-slate-100">{subLabel}</p>}
         </div>
         <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-800/50">{icon}</div>
