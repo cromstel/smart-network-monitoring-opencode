@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { useEventStream } from '@/lib/hooks/useEventStream'
@@ -78,6 +79,8 @@ export function DashboardShell({
   // F-53: reconcile the rendered palette with the saved one.
   const theme = useThemeSetting()
 
+  const [userOpen, setUserOpen] = useState(false)
+
   async function signOut() {
     await fetch('/api/auth/logout', { method: 'POST' })
     router.replace('/auth/login')
@@ -118,14 +121,29 @@ export function DashboardShell({
 
         <div className="mt-auto space-y-3 px-1 pt-4">
           {user && (
-            <div className="border-t border-slate-800 pt-3">
-              <p className="truncate text-xs font-medium text-slate-800 dark:text-slate-300">
-                {user.name || user.email}
-              </p>
-              <p className="truncate text-[11px] text-slate-600 dark:text-slate-500">{user.email}</p>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-600">
-                {user.role}
-              </p>
+            <div className="relative border-t border-slate-200 dark:border-slate-800 pt-3">
+              <button
+                type="button"
+                onClick={() => setUserOpen((v) => !v)}
+                className="flex w-full items-center gap-2 text-xs font-medium text-slate-800 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-200"
+                aria-expanded={userOpen}
+                aria-haspopup="true"
+              >
+                <span className="truncate">{user.name || user.email}</span>
+                <span className="ml-auto text-[10px]">{user.role}</span>
+              </button>
+              {userOpen && (
+                <div className="absolute bottom-full left-0 mb-2 w-48 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-2 z-10">
+                  <div className="px-2 py-1 text-xs font-medium text-slate-900 dark:text-slate-100 truncate">{user.name || user.email}</div>
+                  <div className="px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 truncate">{user.email}</div>
+                  <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
+                  <button
+                    type="button"
+                    onClick={() => { setUserOpen(false); signOut(); }}
+                    className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >Sign out</button>
+                </div>
+              )}
             </div>
           )}
 
@@ -142,13 +160,6 @@ export function DashboardShell({
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={signOut}
-            className="w-full rounded-md px-2 py-1 text-left text-sm text-slate-600 dark:text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-slate-300"
-          >
-            Sign out
-          </button>
         </div>
       </aside>
       <main className="min-w-0 flex-1 p-4 md:p-6">{children}</main>

@@ -100,6 +100,10 @@ export default function OverviewPage() {
 
   return (
     <section className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-slate-500 dark:text-slate-400 font-medium tracking-wide">Dashboard / Overview</div>
+        <div className="text-xs text-slate-500 dark:text-slate-400">{new Date().toLocaleDateString()}</div>
+      </div>
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Overview</h1>
