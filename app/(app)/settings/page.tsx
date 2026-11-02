@@ -34,6 +34,7 @@ export default function SettingsPage() {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<Partial<Settings>>({})
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+  const [tab, setTab] = useState<'general' | 'router' | 'paystack' | 'smtp'>('general')
 
   const { permissions } = useCurrentUser()
 
@@ -123,6 +124,46 @@ export default function SettingsPage() {
     username: 'admin',
     password: '',
   })
+    // --- SMTP email provider (admin-only). Reuses /api/admin/email-providers.
+  const [smtpForm, setSmtpForm] = useState({ providerName: '', smtpHost: '', smtpPort: 587, smtpUser: '', smtpPass: '', isDefault: false, id: '', preset: '' })
+
+  const presetProviders = [
+    { id: "gmail", name: "Gmail", host: "smtp.gmail.com", port: 587, user: "" },
+    { id: "outlook", name: "Outlook", host: "smtp-mail.outlook.com", port: 587, user: "" },
+    { id: "yahoo", name: "Yahoo Mail", host: "smtp.mail.yahoo.com", port: 587, user: "" },
+    { id: "sendgrid", name: "SendGrid", host: "smtp.sendgrid.net", port: 587, user: "apikey" },
+    { id: "mailgun", name: "Mailgun", host: "smtp.mailgun.org", port: 587, user: "postmaster@your-domain" },
+  ]
+  const [smtpMessage, setSmtpMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+  const emailProviders = useQuery({
+    queryKey: ['email-providers'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/email-providers')
+      if (!res.ok) throw new Error('Failed to load email providers')
+      return (await res.json()) as { success: boolean; data: any[] }
+    },
+  })
+  const saveSmtp = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch('/api/admin/email-providers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.message || body?.error || 'Failed to save SMTP provider')
+      }
+      return await res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['email-providers'] })
+      setSmtpForm((f) => ({ ...f, smtpPass: '' }))
+      setSmtpMessage({ tone: 'ok', text: 'SMTP provider saved.' })
+    },
+    onError: (e) => setSmtpMessage({ tone: 'error', text: e instanceof Error ? e.message : 'Save failed' }),
+  })
+
   const [routerMessage, setRouterMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
 
   const routerConfig = useQuery({
@@ -183,19 +224,33 @@ export default function SettingsPage() {
     <section className="max-w-2xl space-y-8">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Per-account preferences. Only admins can change them.
-        </p>
+        <p className="mt-1 text-sm text-slate-400">Per-account preferences. Only admins can change them.</p>
+        <nav className="mt-3 flex gap-2 border-b border-slate-800 pb-1">
+          {(['general', 'router', 'paystack', 'smtp'] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={
+                'px-3 py-1.5 text-sm font-medium rounded-t-md transition-colors ' +
+                (tab === t ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60')
+              }
+            >
+              {t === 'general' ? 'General' : t === 'router' ? 'Router' : t === 'paystack' ? 'Billing' : 'SMTP'}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (Object.keys(form).length > 0) save.mutate(form)
-        }}
-        className="space-y-6 rounded-lg border border-slate-800 bg-slate-950/50 p-5"
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
+      {tab === 'general' && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (Object.keys(form).length > 0) save.mutate(form)
+          }}
+          className="space-y-6 rounded-lg border border-slate-800 bg-slate-950/50 p-5"
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm text-slate-300">
             Subnet (CIDR)
             <input
@@ -304,7 +359,9 @@ export default function SettingsPage() {
           </button>
         )}
       </form>
+      )}
 
+      {tab === 'router' && (
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -434,11 +491,9 @@ export default function SettingsPage() {
           </button>
         )}
       </form>
+      )}
 
-      {/* B-67: PayStack billing. Its own form because the endpoint carries an
-          ADMIN gate and its own state, and because every field is write-only —
-          a stored credential is never sent back to the browser, so the inputs
-          stay blank and leaving one untouched keeps the existing value. */}
+      {tab === 'paystack' && (
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -554,6 +609,153 @@ export default function SettingsPage() {
           </button>
         )}
       </form>
+      )}
+
+      {tab === 'smtp' && (
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          const payload: any = {}
+          if (smtpForm.providerName.trim()) payload.providerName = smtpForm.providerName.trim()
+          if (smtpForm.smtpHost.trim()) payload.smtpHost = smtpForm.smtpHost.trim()
+          if (smtpForm.smtpPort) payload.smtpPort = Number(smtpForm.smtpPort)
+          if (smtpForm.smtpUser.trim()) payload.smtpUser = smtpForm.smtpUser.trim()
+          if (smtpForm.smtpPass) payload.smtpPass = smtpForm.smtpPass
+          if (smtpForm.id) payload.id = smtpForm.id
+          if (smtpForm.isDefault !== undefined) payload.isDefault = smtpForm.isDefault
+          if (Object.keys(payload).length < 1) {
+            setSmtpMessage({ tone: 'error', text: 'Enter at least one value to save.' })
+            return
+          }
+          saveSmtp.mutate(payload)
+        }}
+        className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/50 p-5"
+      >
+        <fieldset className="space-y-4">
+          <legend className="text-sm font-medium text-slate-300">SMTP email provider � admin only</legend>
+          <p className="text-xs text-slate-500">
+            Configures the mail server used for admin notifications. The password is write-only and never shown again.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm text-slate-300">
+              Provider preset
+              <select
+                value={smtpForm.preset || ''}
+                onChange={(e) => {
+                  const presetId = e.target.value;
+                  setSmtpForm((f) => {
+                    if (!presetId || presetId === 'custom') return { ...f, preset: 'custom', providerName: f.providerName || '' };
+                    const p = presetProviders.find((x) => x.id === presetId);
+                    return p ? { ...f, preset: presetId, providerName: p.name, smtpHost: p.host, smtpPort: p.port, smtpUser: p.user || '', smtpPass: '', isDefault: false } : { ...f, preset: 'custom' };
+                  });
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              >
+                <option value="">Select a provider...</option>
+                <option value="gmail">Gmail</option>
+                <option value="outlook">Outlook / Hotmail</option>
+                <option value="yahoo">Yahoo Mail</option>
+                <option value="sendgrid">SendGrid</option>
+                <option value="mailgun">Mailgun</option>
+                <option value="custom">Custom provider</option>
+              </select>
+            </label>
+            <label className="block text-sm text-slate-300">
+              Provider name
+              <input
+                value={smtpForm.providerName}
+                onChange={(e) => setSmtpForm((f) => ({ ...f, providerName: e.target.value }))}
+                placeholder="Custom provider name"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              />
+            </label>
+            <label className="block text-sm text-slate-300">
+              SMTP host
+              <input
+                value={smtpForm.smtpHost}
+                onChange={(e) => setSmtpForm((f) => ({ ...f, smtpHost: e.target.value }))}
+                placeholder="smtp.gmail.com"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              />
+            </label>
+            <label className="block text-sm text-slate-300">
+              SMTP port
+              <input
+                type="number"
+                min={1}
+                max={65535}
+                value={smtpForm.smtpPort ?? ''}
+                onChange={(e) => setSmtpForm((f) => ({ ...f, smtpPort: e.target.value ? Number(e.target.value) : 587 }))}
+                placeholder="587"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              />
+            </label>
+            <label className="block text-sm text-slate-300 flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={smtpForm.isDefault ?? false}
+                onChange={(e) => setSmtpForm((f) => ({ ...f, isDefault: e.target.checked }))}
+                className="h-4 w-4 rounded border-slate-600 bg-slate-800"
+              />
+              Set as default
+            </label>
+            <label className="block text-sm text-slate-300">
+              SMTP user
+              <input
+                value={smtpForm.smtpUser}
+                onChange={(e) => setSmtpForm((f) => ({ ...f, smtpUser: e.target.value }))}
+                placeholder="user@example.com"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              />
+            </label>
+            <label className="block text-sm text-slate-300 col-span-full">
+              SMTP password
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={smtpForm.smtpPass}
+                onChange={(e) => setSmtpForm((f) => ({ ...f, smtpPass: e.target.value }))}
+                placeholder="App password / token"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+              />
+            </label>
+          </div>
+        </fieldset>
+        <p className="text-xs text-slate-500">
+          {emailProviders.data?.data && emailProviders.data.data.length > 0
+            ? 'Saved: ' + emailProviders.data.data.map((p) => p.providerName).join(', ')
+            : 'No SMTP provider configured yet.'}
+        </p>
+        {smtpMessage && (
+          <p
+            role="status"
+            className={
+              smtpMessage.tone === 'ok'
+                ? 'text-sm text-emerald-400'
+                : 'rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-sm text-red-300'
+            }
+          >
+            {smtpMessage.text}
+          </p>
+        )}
+        {permissions.isAdmin && (
+          <button
+            type="submit"
+            disabled={saveSmtp.isPending}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+          >
+            {saveSmtp.isPending ? 'Saving...' : 'Save SMTP'}
+          </button>
+        )}
+      </form>
+      )}
     </section>
   )
 }
+
+
+
+
+
+
+
