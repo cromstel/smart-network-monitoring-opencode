@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   BarChart,
@@ -12,6 +13,7 @@ import {
   Legend,
 } from 'recharts'
 import { Wifi, TrendingUp, Download, Upload } from 'lucide-react'
+import { useCurrentUser } from '@/lib/hooks/useCurrentUser'
 
 interface OverviewData {
   totals: {
@@ -36,6 +38,14 @@ interface OverviewData {
 }
 
 export default function OverviewPage() {
+  const [headerOpen, setHeaderOpen] = useState(false)
+  const { data: userData } = useCurrentUser()
+  const user = userData ?? null
+  async function signOut() {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    window.location.reload()
+  }
+
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['overview'],
     queryFn: async () => {
@@ -100,9 +110,37 @@ export default function OverviewPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div className="text-xs text-slate-500 dark:text-slate-400 font-medium tracking-wide">Dashboard / Overview</div>
-        <div className="text-xs text-slate-500 dark:text-slate-400">{new Date().toLocaleDateString()}</div>
+        <div className="flex items-center gap-3 flex-1 justify-end">
+          <div className="relative max-w-xs w-full">
+            <input
+              type="text"
+              placeholder="Search..."
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
+            />
+          </div>
+          <button aria-label="Notifications" className="relative rounded-full p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-950" />
+          </button>
+          {user && (
+            <div className="relative">
+              <button onClick={() => setHeaderOpen((v) => !v)} className="flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700" aria-expanded={headerOpen} aria-haspopup="true">
+                <span className="truncate max-w-[120px]">{user.name || user.email}</span>
+                <span className="text-[10px] text-slate-500">{user.role}</span>
+              </button>
+              {headerOpen && (
+                <div className="absolute right-0 top-full mt-2 w-48 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-2 z-20">
+                  <div className="px-2 py-1 text-xs font-medium text-slate-900 dark:text-slate-100 truncate">{user.name || user.email}</div>
+                  <div className="px-2 py-0.5 text-[10px] text-slate-500 truncate">{user.email}</div>
+                  <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
+                  <button onClick={() => { setHeaderOpen(false); signOut(); }} className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">Sign out</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
       <header className="flex items-center justify-between">
         <div>
