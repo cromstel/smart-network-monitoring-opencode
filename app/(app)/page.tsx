@@ -242,7 +242,7 @@ function StatCard({
         <div>
           <p className="text-base text-slate-800 dark:text-slate-100 font-medium">{label}</p>
           <p className="mt-1 text-lg md:text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">{value}</p>
-          {subLabel && <p className="mt-1 text-sm text-slate-800 dark:text-slate-100">{subLabel}</p>}
+          {subLabel && <p className="mt-1 text-sm text-slate-800 dark:text-slate-100 whitespace-nowrap">{subLabel}</p>}
         </div>
         <div>{icon}</div>
       </div>
