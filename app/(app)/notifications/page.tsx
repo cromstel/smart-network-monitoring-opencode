@@ -1,8 +1,12 @@
 import Link from 'next/link'
+import { headers } from 'next/headers'
 
 export default async function NotificationsPage() {
-  const base = typeof window === 'undefined' ? 'http://localhost:9090' : ''
-  const res = await fetch(`${base}/api/notifications`, { cache: 'no-store' })
+  const h = await headers()
+  const host = h.get('host') || 'localhost:9090'
+  const protocol = h.get('x-forwarded-proto') || 'http'
+  const baseUrl = `${protocol}://${host}`
+  const res = await fetch(`${baseUrl}/api/notifications`, { cache: 'no-store', headers: { cookie: h.get('cookie') || '' } })
   const notifications = res.ok ? (await res.json()).data ?? [] : [
     { id: '1', title: 'New device detected', message: 'Device 192.168.1.42 joined the network.', time: '2 min ago' },
     { id: '2', title: 'Scan completed', message: 'Network scan finished: 12 devices found.', time: '15 min ago' },
