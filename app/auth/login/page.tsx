@@ -11,9 +11,9 @@ const revealCSS = `
     to   { opacity: 1; transform: translateY(0); }
   }
   @keyframes radarSweep {
-    0%   { background-position: 0% 50%; opacity: 0.1; }
-    50%  { background-position: 100% 0%; opacity: 0.25; }
-    100% { background-position: 0% 50%; opacity: 0.1; }
+    0%   { background-position: 0% 50%; opacity: 0.65; }
+    50%  { background-position: 100% 0%; opacity: 0.9; }
+    100% { background-position: 0% 50%; opacity: 0.65; }
   }
   .reveal { animation: revealUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .reveal-d1 { animation-delay: 0.1s; }
@@ -32,11 +32,11 @@ export default function LoginPage() {
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-0 z-[-1] bg-[length:300%_300%] bg-[radial-gradient(circle_at_50%_35%,_rgba(74,222,128,0.28),_transparent_60%)] animate-[radarSweep_6s_linear_infinite]"
+        className="pointer-events-none absolute z-[-1] -inset-8 bg-[length:150%_150%] bg-[radial-gradient(circle_at_50%_40%,_rgba(74,222,128,0.55),_transparent_55%)] animate-[radarSweep_6s_linear_infinite]"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-0 z-[-1] bg-[length:300%_300%] bg-[radial-gradient(circle_at_50%_65%,_rgba(163,230,53,0.20),_transparent_60%)] animate-[radarSweep_6s_linear_infinite]"
+        className="pointer-events-none absolute z-[-1] -inset-8 bg-[length:150%_150%] bg-[radial-gradient(circle_at_50%_60%,_rgba(163,230,53,0.45),_transparent_55%)] animate-[radarSweep_6s_linear_infinite]"
       />
 
       {/* Geometric atmospheric mesh */}

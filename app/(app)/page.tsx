@@ -56,9 +56,9 @@ export default function OverviewPage() {
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="rounded-lg border border-slate-800 bg-slate-950/50 p-6 animate-pulse">
-              <div className="h-4 bg-slate-800 rounded w-1/2 mb-2" />
-              <div className="h-8 bg-slate-800 rounded w-3/4" />
+            <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/50 p-6 animate-pulse">
+              <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-1/2 mb-2" />
+              <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-3/4" />
             </div>
           ))}
         </div>
@@ -237,14 +237,14 @@ function StatCard({
   subLabel?: string
 }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-6">
+    <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/50 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-slate-400">{label}</p>
-          <p className="mt-1 text-3xl font-semibold tracking-tight">{value}</p>
-          {subLabel && <p className="mt-1 text-sm text-slate-500">{subLabel}</p>}
+          <p className="text-base text-slate-800 dark:text-slate-100 font-medium">{label}</p>
+          <p className="mt-1 text-3xl md:text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">{value}</p>
+          {subLabel && <p className="mt-1 text-base text-slate-800 dark:text-slate-100">{subLabel}</p>}
         </div>
-        <div className="p-3 rounded-lg bg-slate-800/50">{icon}</div>
+        <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-800/50">{icon}</div>
       </div>
     </div>
   )
