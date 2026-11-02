@@ -90,7 +90,10 @@ export function DashboardShell({
       <aside className="flex shrink-0 flex-col border-b border-slate-200 dark:border-slate-800 p-4 md:w-56 md:border-b-0 md:border-r">
         <Link href="/" className="flex items-center gap-2 px-3 py-2">
           <img src="/logo.avif" alt="" className="h-9 w-9 rounded-md object-contain" aria-hidden />
-          <span className="text-sm font-semibold text-slate-900 dark:text-slate-200">{appName}</span>
+          <span className="text-sm leading-tight text-slate-900 dark:text-slate-200">
+            <span className="block font-bold">Smart Home</span>
+            <span className="block">Network Monitor</span>
+          </span>
         </Link>
         <nav className="mt-4 flex gap-1 overflow-x-auto md:mt-6 md:block md:space-y-1">
           {NAV.map((item) => {
