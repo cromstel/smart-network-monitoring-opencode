@@ -242,7 +242,13 @@ function StatCard({
         <div>
           <p className="text-base text-slate-800 dark:text-slate-100 font-medium">{label}</p>
           <p className="mt-1 text-lg md:text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 whitespace-nowrap">
-            <span className="text-lg md:text-xl">{value.split(' ')[0]}</span> <span className="text-sm font-medium opacity-70">{value.split(' ')[1] ?? ''}</span>
+            {value.includes(' Mbps') ? (
+              <>
+                <span className="text-lg md:text-xl">{value.replace(' Mbps', '')}</span> <span className="text-xs font-medium opacity-70">Mbps</span>
+              </>
+            ) : (
+              <span className="text-lg md:text-xl">{value}</span>
+            )}
           </p>
           {subLabel && <p className="mt-1 text-sm text-slate-800 dark:text-slate-100 whitespace-nowrap">{subLabel}</p>}
         </div>
