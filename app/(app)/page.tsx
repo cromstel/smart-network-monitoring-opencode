@@ -160,6 +160,7 @@ export default function OverviewPage() {
             </div>
           )}
         </div>
+        <div className="mt-2 mb-2 border-t border-slate-200 dark:border-slate-800" />
       </div>
       <header className="flex items-center justify-between">
         <div>
