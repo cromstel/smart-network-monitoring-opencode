@@ -14,7 +14,7 @@ function CardShell({ appName, children }: { appName: string; children: ReactNode
     <div className="relative overflow-hidden border border-white/[0.06] bg-[#0b1224]/70 shadow-[0_0_60px_-15px_rgba(59,130,246,0.15)] backdrop-blur-sm">
       <div className="flex flex-col items-center gap-3 pt-6">
         <img src="/logo.avif" alt="Network Monitor logo" width="48" height="48" className="h-12 w-12" />
-        <h1 className="text-[10px] font-medium uppercase tracking-[0.35em] text-amber-300/70">
+        <h1 className="text-[10px] sm:text-xs font-medium uppercase tracking-[0.35em] text-amber-300/70">
           {appName}
         </h1>
       </div>
@@ -30,6 +30,7 @@ function LoginForm({ appName }: { appName: string }) {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [bot, setBot] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
@@ -41,7 +42,7 @@ function LoginForm({ appName }: { appName: string }) {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, website: bot }),
       })
       if (res.ok) {
         router.replace(redirect)
@@ -65,6 +66,18 @@ function LoginForm({ appName }: { appName: string }) {
   return (
     <CardShell appName={appName}>
       <form onSubmit={onSubmit} className="space-y-5 px-6 pb-6 pt-4" aria-label="Sign in">
+        {/* Honeypot: hidden from users, visible to bots */}
+        <input
+          type="text"
+          name="website"
+          value={bot}
+          onChange={(e) => setBot(e.target.value)}
+          autoComplete="off"
+          tabIndex={-1}
+          aria-hidden="true"
+          className="hidden"
+          style={{ display: 'none' }}
+        />
       <div>
         <label htmlFor="email" className="block text-xs font-medium uppercase tracking-widest text-slate-400">
           Email

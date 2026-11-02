@@ -17,6 +17,7 @@ const setupSchema = z.object({
       message: 'Password needs an uppercase letter, a lowercase letter and a digit',
     }),
   name: z.string().min(1).max(100).optional(),
+  website: z.string().optional(),
 })
 
 /**
@@ -56,6 +57,10 @@ export async function POST(request: NextRequest) {
     }
 
     const parsed = setupSchema.safeParse(body)
+    if (parsed.success && parsed.data.website && parsed.data.website.trim().length > 0) {
+      logger.warn({ bot: parsed.data.website }, 'bot activity blocked (honeypot filled) on setup')
+      return apiError(400, 'BOT_DETECTED', 'Invalid submission')
+    }
     if (!parsed.success) {
       return apiError(400, 'INVALID_BODY', 'Invalid input', parsed.error.flatten())
     }

@@ -13,6 +13,7 @@ export default function SetupPage() {
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [bot, setBot] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
@@ -49,7 +50,7 @@ export default function SetupPage() {
       const res = await fetch('/api/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name: name || undefined }),
+        body: JSON.stringify({ email, password, name: name || undefined, website: bot }),
       })
 
       if (res.ok) {
@@ -87,6 +88,18 @@ export default function SetupPage() {
 
         {status === 'needed' && (
           <form onSubmit={onSubmit} className="mt-8 space-y-4">
+            {/* Honeypot */}
+            <input
+              type="text"
+              name="website"
+              value={bot}
+              onChange={(e) => setBot(e.target.value)}
+              autoComplete="off"
+              tabIndex={-1}
+              aria-hidden="true"
+              className="hidden"
+              style={{ display: 'none' }}
+            />
             {/* App logo — inline SVG */}
             <div className="flex justify-center mb-2">
               <svg

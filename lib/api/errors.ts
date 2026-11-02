@@ -11,6 +11,7 @@ export type ErrorCode =
   | 'SCANNER_UNAVAILABLE'
   | 'ROUTER_UNREACHABLE'
   | 'INTERNAL'
+  | 'BOT_DETECTED'
 
 export function apiError(
   status: number,

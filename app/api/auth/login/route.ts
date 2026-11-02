@@ -9,6 +9,7 @@ import { createRateLimiter } from '@/lib/utils/rateLimit'
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  website: z.string().optional(),
 })
 
 // Five attempts per quarter hour, per client. Configurable because the browser
@@ -25,6 +26,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const parsed = loginSchema.safeParse(body)
+
+    if (parsed.success && parsed.data.website && parsed.data.website.trim().length > 0) {
+      logger.warn({ email: parsed.data.email, bot: parsed.data.website }, 'bot activity blocked (honeypot filled)')
+      return apiError(400, 'BOT_DETECTED', 'Invalid submission')
+    }
 
     if (!parsed.success) {
       return apiError(400, 'INVALID_BODY', 'Invalid email or password', parsed.error.flatten())
