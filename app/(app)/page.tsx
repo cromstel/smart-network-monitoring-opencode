@@ -39,6 +39,8 @@ interface OverviewData {
 
 export default function OverviewPage() {
   const [headerOpen, setHeaderOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [notOpen, setNotOpen] = useState(false)
   const { data: userData } = useCurrentUser()
   const user = userData ?? null
   async function signOut() {
@@ -107,8 +109,6 @@ export default function OverviewPage() {
 
   const totalThroughput = totals.totalUploadMbps + totals.totalDownloadMbps
   const peakThroughput = (peak?.peakUploadMbps ?? 0) + (peak?.peakDownloadMbps ?? 0)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [notOpen, setNotOpen] = useState(false)
 
   const filteredTopConsumers = searchQuery.trim() ? (topConsumers ?? []).filter((c: any) => (c.deviceName ?? '').toLowerCase().includes(searchQuery.toLowerCase()) || (c.macAddress ?? '').toLowerCase().includes(searchQuery.toLowerCase())) : (topConsumers ?? [])
 
