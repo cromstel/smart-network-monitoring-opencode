@@ -132,6 +132,7 @@ export default function DeviceDetailPage() {
           </h1>
           <p className="mt-1 text-sm text-slate-400">
             MAC: {device.macAddress} · IP: {device.ipAddress}
+            {device.ipv6Address && ` · IPv6: ${device.ipv6Address}`}
             {device.hostname && ` · Hostname: ${device.hostname}`}
           </p>
         </div>

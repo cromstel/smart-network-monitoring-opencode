@@ -2,6 +2,7 @@ import { getConfig } from '@/lib/config'
 import * as userRepo from '@/lib/db/repositories/userRepository'
 import { hashTokenAsync, verifyPassword, generateToken } from '@/lib/utils/crypto'
 import { logger } from '@/lib/utils/logger'
+import { sendEmail } from '@/lib/services/emailService'
 import type { User, Session, SessionWithToken, CreateUserInput, UserPatch, UserRole } from '@/lib/types/user'
 
 const SESSION_TTL_DAYS = 7
@@ -85,6 +86,76 @@ export async function changePassword(userId: string, currentPassword: string, ne
 
   await userRepo.updatePassword(userId, newPassword)
   await userRepo.deleteSessionsForUser(userId)
+  return true
+}
+
+/**
+ * F-64: password reset by email.
+ *
+ * requestPasswordReset: generates a single-use, time-bound token, hashes it
+ * (HMAC with SESSION_SECRET, same as session tokens), stores it, and emails
+ * the raw token to the user. Returns true whether or not the email exists —
+ * never leaks whether an address is registered.
+ *
+ * confirmPasswordReset: validates the token (unexpired, unused), sets the new
+ * password, invalidates all sessions, and marks the token used. Returns false
+ * for an invalid/expired/already-used token.
+ */
+
+export async function requestPasswordReset(email: string): Promise<boolean> {
+  const user = await userRepo.findByEmail(email)
+  if (!user) return false
+
+  const token = generateToken()
+  const tokenHash = await hashTokenAsync(token)
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
+
+  await userRepo.createPasswordResetToken({
+    userId: user.id,
+    tokenHash,
+    expiresAt: expiresAt.toISOString(),
+  })
+
+  // Best-effort email: a misconfigured SMTP provider must not leak whether
+  // the address exists, so we swallow email errors here.
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: 'Reset your Network Monitor password',
+      html: `
+        <p>You requested a password reset for your Network Monitor account.</p>
+        <p>Use this code to reset your password:</p>
+        <p style="font-size:1.25rem;font-family:monospace;letter-spacing:2px">${token}</p>
+        <p>The code expires in 1 hour and can only be used once.</p>
+        <p>If you did not request this, you can safely ignore this email.</p>
+      `,
+      text: `You requested a password reset for your Network Monitor account.\n\nUse this code to reset your password:\n\n${token}\n\nThe code expires in 1 hour and can only be used once.\n\nIf you did not request this, you can safely ignore this email.`,
+    })
+  } catch (err) {
+    logger.error({ err, userId: user.id }, 'password reset email failed')
+  }
+
+  return true
+}
+
+export async function confirmPasswordReset(token: string, newPassword: string): Promise<boolean> {
+  const tokenHash = await hashTokenAsync(token)
+  const record = await userRepo.findPasswordResetTokenByHash(tokenHash)
+
+  if (!record) return false
+
+  const now = new Date()
+  if (new Date(record.expiresAt) < now) return false
+  if (record.usedAt !== null) return false
+
+  const user = await userRepo.findById(record.userId)
+  if (!user || !user.isActive) return false
+
+  await userRepo.updatePassword(record.userId, newPassword)
+  await userRepo.markPasswordResetTokenUsed(tokenHash)
+  await userRepo.deleteSessionsForUser(record.userId)
+
+  logger.info({ userId: record.userId }, 'password reset confirmed')
   return true
 }
 

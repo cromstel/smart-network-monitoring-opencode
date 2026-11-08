@@ -30,6 +30,7 @@ export interface Device {
   id: string
   macAddress: string
   ipAddress: string
+  ipv6Address: string | null
   hostname: string | null
   deviceName: string | null
   deviceType: DeviceType

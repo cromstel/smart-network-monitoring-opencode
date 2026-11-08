@@ -270,6 +270,7 @@ async function ingest(
   await upsertFromScan({
     macAddress: mac,
     ipAddress: d.ipAddress,
+    ipv6Address: d.ipv6Address,
     hostname: d.hostname ?? null,
     manufacturer: vendor,
     signalStrength: d.signalStrength ?? null,

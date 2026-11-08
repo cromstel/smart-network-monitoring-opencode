@@ -223,3 +223,66 @@ function mapRowToSession(row: { id: string; user_id: string; token_hash: string;
     createdAt: new Date(row.created_at),
   }
 }
+
+export interface PasswordResetToken {
+  id: string
+  userId: string
+  tokenHash: string
+  expiresAt: string
+  usedAt: string | null
+  createdAt: string
+}
+
+export async function createPasswordResetToken(input: {
+  userId: string
+  tokenHash: string
+  expiresAt: string
+}): Promise<void> {
+  const id = randomUUID()
+  await db
+    .insertInto('password_reset_tokens')
+    .values({
+      id,
+      user_id: input.userId,
+      token_hash: input.tokenHash,
+      expires_at: input.expiresAt,
+      used_at: null,
+      created_at: new Date().toISOString(),
+    })
+    .execute()
+}
+
+export async function findPasswordResetTokenByHash(tokenHash: string): Promise<PasswordResetToken | null> {
+  const row = await db
+    .selectFrom('password_reset_tokens')
+    .selectAll()
+    .where('token_hash', '=', tokenHash)
+    .executeTakeFirst()
+
+  if (!row) return null
+  return {
+    id: row.id,
+    userId: row.user_id,
+    tokenHash: row.token_hash,
+    expiresAt: row.expires_at,
+    usedAt: row.used_at,
+    createdAt: row.created_at,
+  }
+}
+
+export async function markPasswordResetTokenUsed(tokenHash: string): Promise<void> {
+  await db
+    .updateTable('password_reset_tokens')
+    .set({ used_at: new Date().toISOString() })
+    .where('token_hash', '=', tokenHash)
+    .execute()
+}
+
+export async function deleteExpiredPasswordResetTokens(): Promise<number> {
+  const result = await db
+    .deleteFrom('password_reset_tokens')
+    .where('expires_at', '<', new Date().toISOString())
+    .executeTakeFirst()
+
+  return Number(result?.numDeletedRows ?? 0)
+}

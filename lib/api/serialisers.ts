@@ -4,6 +4,7 @@ export interface DeviceDTO {
   id: string
   macAddress: string
   ipAddress: string
+  ipv6Address: string | null
   hostname: string | null
   deviceName: string | null
   deviceType: EnrichedDevice['device']['deviceType']
@@ -35,6 +36,7 @@ export function toDeviceDTO(enriched: EnrichedDevice): DeviceDTO {
     id: device.id,
     macAddress: device.macAddress,
     ipAddress: device.ipAddress,
+    ipv6Address: device.ipv6Address,
     hostname: device.hostname,
     deviceName: device.deviceName,
     deviceType: device.deviceType,

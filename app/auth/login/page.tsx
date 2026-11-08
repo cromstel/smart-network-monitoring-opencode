@@ -63,6 +63,12 @@ export default function LoginPage() {
           Create the admin account
         </Link>
       </p>
+      <p className="reveal reveal-d3 relative z-10 mt-2 text-xs text-slate-500" aria-label="Forgot password link">
+        Forgot your password?{' '}
+        <Link href="/auth/forgot-password" className="text-blue-400 underline-offset-2 hover:text-blue-300 hover:underline">
+          Request a reset
+        </Link>
+      </p>
     </main>
   )
 }

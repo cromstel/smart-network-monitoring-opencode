@@ -54,6 +54,7 @@ export function rowToDevice(row: Selectable<DevicesTable>): Device {
     id: row.id,
     macAddress: row.mac_address,
     ipAddress: row.ip_address,
+    ipv6Address: row.ipv6_address,
     hostname: row.hostname,
     deviceName: row.device_name,
     deviceType: toDeviceType(row.device_type),

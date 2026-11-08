@@ -12,6 +12,7 @@ export type ErrorCode =
   | 'ROUTER_UNREACHABLE'
   | 'INTERNAL'
   | 'BOT_DETECTED'
+  | 'INVALID_TOKEN'
 
 export function apiError(
   status: number,

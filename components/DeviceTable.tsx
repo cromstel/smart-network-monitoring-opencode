@@ -39,7 +39,8 @@ const STATUS_STYLES: Record<DeviceStatus, string> = {
 const COLUMNS = [
   'Device',
   'MAC',
-  'IP',
+  'IPv4',
+  'IPv6',
   'Type',
   'Status',
   'Signal',
@@ -156,6 +157,9 @@ export function DeviceTable({
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-300">
                   {device.ipAddress}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-500">
+                  {device.ipv6Address ?? '—'}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-slate-300">{device.deviceType}</td>
                 <td className="whitespace-nowrap px-4 py-3">

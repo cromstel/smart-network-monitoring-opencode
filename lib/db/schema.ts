@@ -27,6 +27,7 @@ export interface DevicesTable {
   total_connection_time: Generated<SqlBigInt>
   category_id: string | null
   static_ip: string | null
+  ipv6_address: string | null
   first_seen: string
   last_seen: string
   created_at: string
@@ -68,6 +69,18 @@ export interface ConnectionLogsTable {
   created_at: string
 }
 
+export interface DhcpLeasesTable {
+  id: string
+  device_id: string
+  ip_address: string
+  mac_address: string
+  hostname: string | null
+  lease_start: string
+  lease_end: string | null
+  is_active: number
+  created_at: string
+}
+
 export interface UsersTable {
   id: string
   email: string
@@ -87,6 +100,15 @@ export interface SessionsTable {
   expires_at: string
   ip_address: string | null
   user_agent: string | null
+  created_at: string
+}
+
+export interface PasswordResetTokensTable {
+  id: string
+  user_id: string
+  token_hash: string
+  expires_at: string
+  used_at: string | null
   created_at: string
 }
 
@@ -218,8 +240,10 @@ export interface DB {
   bandwidth_metrics: BandwidthMetricsTable
   bandwidth_hourly: BandwidthHourlyTable
   connection_logs: ConnectionLogsTable
+  dhcp_leases: DhcpLeasesTable
   users: UsersTable
   sessions: SessionsTable
+  password_reset_tokens: PasswordResetTokensTable
   device_alerts: DeviceAlertsTable
   notifications: NotificationsTable
   user_settings: UserSettingsTable

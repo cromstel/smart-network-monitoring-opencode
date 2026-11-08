@@ -27,6 +27,7 @@ const NAV = [
   { href: '/', label: 'Overview' },
   { href: '/notifications', label: 'Notifications' },
   { href: '/devices', label: 'Devices' },
+  { href: '/dhcp-leases', label: 'DHCP Leases' },
   { href: '/firewall', label: 'Firewall' },
   { href: '/alerts', label: 'Alerts' },
   { href: '/settings', label: 'Settings' },

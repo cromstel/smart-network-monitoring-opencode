@@ -203,6 +203,7 @@ export async function update(id: string, patch: DevicePatch): Promise<Device | n
 export interface ScanDeviceInput {
   macAddress: string
   ipAddress: string
+  ipv6Address: string | null
   hostname: string | null
   manufacturer: string | null
   signalStrength?: number | null
@@ -218,6 +219,7 @@ export async function upsertFromScan(input: ScanDeviceInput): Promise<void> {
   // through here, so a mistake in this spelling breaks the entire device scan.
   const values = {
     ip_address: input.ipAddress,
+    ipv6_address: input.ipv6Address,
     hostname: input.hostname,
     manufacturer: input.manufacturer,
     signal_strength: input.signalStrength ?? null,
@@ -232,6 +234,7 @@ export async function upsertFromScan(input: ScanDeviceInput): Promise<void> {
       id: randomUUID(),
       mac_address: input.macAddress.toUpperCase(),
       ip_address: input.ipAddress,
+      ipv6_address: input.ipv6Address,
       hostname: input.hostname,
       manufacturer: input.manufacturer,
       signal_strength: input.signalStrength ?? null,

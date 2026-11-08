@@ -91,6 +91,7 @@ function parseArpScanOutput(output: string): DiscoveredDevice[] {
     devices.push({
       macAddress: mac.toUpperCase(),
       ipAddress: ip,
+      ipv6Address: null,
       hostname: rest.length > 0 ? rest.join(' ') : undefined,
       signalStrength: undefined,
     })

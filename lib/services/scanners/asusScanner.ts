@@ -178,6 +178,7 @@ export const asusScanner: Scanner = {
         .map((d) => ({
           macAddress: d.mac.toUpperCase(),
           ipAddress: d.ip,
+          ipv6Address: null,
           hostname: d.name || undefined,
           signalStrength: d.rssi !== undefined ? d.rssi : undefined,
         }))

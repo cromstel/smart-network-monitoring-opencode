@@ -18,6 +18,7 @@ export interface TrafficCounters {
 export interface DiscoveredDevice {
   macAddress: string
   ipAddress: string
+  ipv6Address: string | null
   hostname?: string
   manufacturer?: string
   signalStrength?: number
