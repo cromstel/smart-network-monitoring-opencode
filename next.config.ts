@@ -12,6 +12,11 @@ import { devAllowedOrigins } from './lib/config/ports'
  */
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+
+  // Hide the dev-indicators corner badge (route status / build activity) in
+  // development. Errors still surface through the error overlay — this only
+  // removes the always-on indicator UI.
+  devIndicators: false,
   // Packages Next must not bundle into the server build. `better-sqlite3` was
   // here until SQLite was removed — it is no longer a dependency, and listing
   // a package that is not installed only implies a runtime that does not
