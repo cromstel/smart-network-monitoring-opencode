@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDevices } from '@/lib/hooks/useDevices'
 import { DeviceTable } from '@/components/DeviceTable'
-import { Loader2 } from 'lucide-react'
+import { Download, Loader2 } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -48,10 +48,20 @@ export default function DevicesPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<string>('')
   const [type, setType] = useState<string>('')
+  const [category, setCategory] = useState<string>('')
+  const [categories, setCategories] = useState<string[]>([])
   const [sort, setSort] = useState<string>('lastSeen')
   const [order, setOrder] = useState<string>('desc')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+
+  // Fetch distinct categories for the filter dropdown.
+  useEffect(() => {
+    fetch('/api/devices/categories')
+      .then((res) => res.json())
+      .then((body: { data?: string[] }) => setCategories(body.data ?? []))
+      .catch(() => setCategories([]))
+  }, [])
 
   const { data, pagination, isLoading, isError, error } = useDevices({
     page,
@@ -59,12 +69,53 @@ export default function DevicesPage() {
     search,
     status: (status || undefined) as 'online' | 'offline' | 'idle' | undefined,
     type: type || undefined,
+    categoryId: category || undefined,
     sort: sort as 'name' | 'lastSeen' | 'bandwidth' | undefined,
     order: order as 'asc' | 'desc' | undefined,
   })
 
   const handleRowClick = (device: DeviceDTO) => {
     router.push(`/devices/${device.id}`)
+  }
+
+  const exportCsv = () => {
+    if (!data?.length) return
+    const headers = [
+      'Name',
+      'MAC',
+      'IP',
+      'Type',
+      'Status',
+      'Signal (dBm)',
+      'First Seen',
+      'Last Seen',
+      'Total Connection Time',
+      'Bandwidth (Mbps)',
+    ]
+    const rows = data.map((d) => [
+      d.deviceName ?? d.hostname ?? d.macAddress,
+      d.macAddress,
+      d.ipAddress,
+      d.deviceType,
+      d.status,
+      d.signalStrength ?? 'N/A',
+      d.firstSeen,
+      d.lastSeen,
+      d.totalConnectionTimeSeconds,
+      d.currentBandwidth ?? 0,
+    ])
+    const csv = [headers, ...rows]
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `devices-${new Date().toISOString().slice(0, 10)}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   return (
@@ -111,6 +162,19 @@ export default function DevicesPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger className="w-[160px] bg-slate-800/50 border border-slate-700">
+              <SelectValue placeholder="All categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All categories</SelectItem>
+              {categories.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={sort} onValueChange={setSort}>
             <SelectTrigger className="w-[160px] bg-slate-800/50 border border-slate-700">
               <SelectValue placeholder="Sort by">{SORT_LABELS[sort] ?? sort}</SelectValue>
@@ -135,6 +199,17 @@ export default function DevicesPage() {
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <div className="flex items-center justify-between mb-4">
+        <button
+          type="button"
+          onClick={exportCsv}
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 hover:text-slate-100 disabled:opacity-50"
+          disabled={isLoading || !data?.length}
+        >
+          <Download className="h-3 w-3" /> Export CSV
+        </button>
       </div>
 
       <div className="rounded-lg border border-slate-800 bg-slate-950/50">

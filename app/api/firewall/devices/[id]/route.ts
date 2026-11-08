@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/api/auth'
 import { apiError } from '@/lib/api/errors'
-import { setDeviceBlocked } from '@/lib/services/firewallService'
+import { setDeviceBlockedViaRouter } from '@/lib/services/firewallService'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +35,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return apiError(400, 'INVALID_BODY', 'Invalid block state', parsed.error.flatten())
   }
 
-  const device = await setDeviceBlocked(id, parsed.data.isBlocked, auth.user.id)
+  const device = await setDeviceBlockedViaRouter(id, parsed.data.isBlocked, auth.user.id)
   if (!device) {
     return apiError(404, 'NOT_FOUND', 'Device not found')
   }

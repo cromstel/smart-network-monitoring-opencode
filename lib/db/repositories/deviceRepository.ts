@@ -296,3 +296,13 @@ export async function updateFromScan(id: string, ipAddress: string, hostname: st
     .where('id', '=', id)
     .execute()
 }
+
+export async function distinctCategories(): Promise<string[]> {
+  const rows = await db
+    .selectFrom('devices')
+    .select('category_id')
+    .where('category_id', 'is not', null)
+    .distinct()
+    .execute()
+  return rows.map((r) => r.category_id).filter(Boolean) as string[]
+}

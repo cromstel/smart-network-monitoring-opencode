@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useDeviceById, useDeviceBandwidth, useDeviceConnectionLogs } from '@/lib/hooks/useDevices'
 import { useDeviceForm } from '@/lib/hooks/useDeviceForm'
+import { useQuery } from '@tanstack/react-query'
 import {
   LineChart,
   Line,
@@ -69,6 +70,17 @@ export default function DeviceDetailPage() {
   const [range, setRange] = useState(24)
   const { data: bandwidth, isLoading: bandwidthLoading } = useDeviceBandwidth(deviceId, range)
   const { data: connectionLogs = [], isLoading: logsLoading } = useDeviceConnectionLogs(deviceId)
+
+  const { data: peakPerDay, isLoading: peakLoading } = useQuery({
+    queryKey: ['devices', deviceId, 'peak'],
+    queryFn: async () => {
+      const res = await fetch(`/api/devices/${deviceId}/peak?days=7`)
+      if (!res.ok) throw new Error('Failed to load peak throughput')
+      return (await res.json()) as { data: Array<{ date: string; peakUploadMbps: number; peakDownloadMbps: number }> }
+    },
+    enabled: !!deviceId,
+    staleTime: 5 * 60 * 1000,
+  })
 
   const { isEditing, formData, setFormData, handleChange, handleSubmit, openEditDialog, closeEditDialog, handleOpenChange } = useDeviceForm(device)
   // Role only hides the affordance; the PATCH handler still re-checks the
@@ -248,6 +260,12 @@ export default function DeviceDetailPage() {
                 {formatDate(device.lastSeen)}
               </span>
             </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Cumulative Connection</span>
+              <span className="text-slate-300 font-medium">
+                {formatDuration(device.totalConnectionTimeSeconds)}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -324,6 +342,44 @@ export default function DeviceDetailPage() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-6">
+        <h2 className="text-lg font-medium mb-4">Peak Throughput (per day)</h2>
+        {peakLoading ? (
+          <p className="text-slate-400 text-sm">Loading peak throughput…</p>
+        ) : (peakPerDay?.data ?? []).length === 0 ? (
+          <p className="text-slate-400 text-sm">No peak data available yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr>
+                  <th className="pb-2 text-slate-400">Date</th>
+                  <th className="pb-2 text-slate-400 text-right">Peak Download (Mbps)</th>
+                  <th className="pb-2 text-slate-400 text-right">Peak Upload (Mbps)</th>
+                  <th className="pb-2 text-slate-400 text-right">Peak Total (Mbps)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {(peakPerDay?.data ?? []).map((day) => (
+                  <tr key={day.date} className="hover:bg-slate-800/50">
+                    <td className="py-3 text-slate-300 font-medium">{day.date}</td>
+                    <td className="py-3 text-slate-200 font-mono text-right">
+                      {day.peakDownloadMbps.toFixed(1)}
+                    </td>
+                    <td className="py-3 text-slate-200 font-mono text-right">
+                      {day.peakUploadMbps.toFixed(1)}
+                    </td>
+                    <td className="py-3 text-slate-200 font-mono text-right">
+                      {(day.peakDownloadMbps + day.peakUploadMbps).toFixed(1)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

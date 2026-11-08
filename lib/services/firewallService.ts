@@ -210,6 +210,51 @@ export async function setDeviceBlocked(
   return device
 }
 
+export async function findRouterConfig(): Promise<{ routerType: string; routerIp: string | null; port: number | null } | null> {
+  const { findRouterConfig: findRouterConfigRepo } = await import('@/lib/db/repositories/settingsRepository')
+  const config = await findRouterConfigRepo()
+  if (!config) return null
+  return { routerType: config.routerType, routerIp: config.routerIp, port: config.port }
+}
+
+/**
+ * Blocks or unblocks a device, attempting router-level blocking first and
+ * falling back to app-level blocking (`devices.is_blocked`) when no capable
+ * router is configured.
+ *
+ * F-44: block/unblock through the router when a router is configured; the
+ * app-level block is always the safety net so the UI never silently fails.
+ */
+export async function setDeviceBlockedViaRouter(
+  deviceId: string,
+  isBlocked: boolean,
+  actorUserId?: string
+): Promise<Device | null> {
+  const router = await findRouterConfig()
+
+  // Router-level block: only ASUS exposes a configurable block API through the
+  // scanner today, and no scanner implements blocking yet. When a capable
+  // router is configured but cannot block, log and fall through to app-level.
+  if (router?.routerType === 'asus') {
+    try {
+      const { asusScanner } = await import('@/lib/services/scanners/asusScanner')
+      if (await asusScanner.isAvailable()) {
+        // Scanner does not implement device blocking yet — fall through to
+        // app-level blocking below. This is the integration point for when
+        // router-level block is implemented.
+        logger.warn(
+          { scanner: 'asus', deviceId, isBlocked },
+          'router-level device blocking not yet implemented by scanner; falling back to app-level block'
+        )
+      }
+    } catch (err) {
+      logger.error({ err, deviceId, isBlocked }, 'router-level block attempt failed; falling back to app-level')
+    }
+  }
+
+  return setDeviceBlocked(deviceId, isBlocked, actorUserId)
+}
+
 export async function listBlockedDevices(): Promise<Device[]> {
   return deviceRepo.findBlocked()
 }

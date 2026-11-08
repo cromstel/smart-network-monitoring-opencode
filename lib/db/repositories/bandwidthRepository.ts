@@ -234,3 +234,42 @@ export async function fetchTopConsumers(
     totalMbps: Number((row.upload_speed ?? 0) + (row.download_speed ?? 0)),
   }))
 }
+
+/**
+ * Peak throughput per calendar day for a device over the last `days` days.
+ * Groups samples by date and takes the max download/upload per day.
+ */
+export async function peakPerDay(
+  deviceId: string,
+  days: number
+): Promise<Array<{ date: string; peakUploadMbps: number; peakDownloadMbps: number }>> {
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  const from = new Date(now)
+  from.setDate(from.getDate() - days + 1)
+
+  const rows = await listForDeviceBetween(deviceId, from, now)
+
+  const byDay = new Map<
+    string,
+    { peakUpload: number; peakDownload: number }
+  >()
+  for (const row of rows) {
+    const date = new Date(row.timestamp).toISOString().slice(0, 10)
+    const existing = byDay.get(date) ?? { peakUpload: 0, peakDownload: 0 }
+    existing.peakUpload = Math.max(existing.peakUpload, row.uploadSpeed)
+    existing.peakDownload = Math.max(existing.peakDownload, row.downloadSpeed)
+    byDay.set(date, existing)
+  }
+
+  // Ensure every day in the range is represented (zeros when no samples).
+  const result: Array<{ date: string; peakUploadMbps: number; peakDownloadMbps: number }> = []
+  for (let i = 0; i < days; i++) {
+    const d = new Date(now)
+    d.setDate(d.getDate() - i)
+    const date = d.toISOString().slice(0, 10)
+    const peak = byDay.get(date) ?? { peakUpload: 0, peakDownload: 0 }
+    result.push({ date, peakUploadMbps: peak.peakUpload, peakDownloadMbps: peak.peakDownload })
+  }
+  return result.reverse()
+}
