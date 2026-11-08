@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useDevices } from '@/lib/hooks/useDevices'
 import { DeviceTable } from '@/components/DeviceTable'
 import { Loader2 } from 'lucide-react'
@@ -13,6 +14,7 @@ import {
 } from '@radix-ui/react-select'
 import { ChevronUp, ChevronDown } from 'lucide-react'
 import type { DeviceDTO } from '@/lib/api/serialisers'
+import { KNOWN_DEVICE_TYPES } from '@/lib/types/device'
 
 /**
  * Labels for the two controlled selects below.
@@ -42,24 +44,27 @@ const ORDER_LABELS: Record<string, string> = {
 }
 
 export default function DevicesPage() {
+  const router = useRouter()
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<string>('')
+  const [type, setType] = useState<string>('')
   const [sort, setSort] = useState<string>('lastSeen')
   const [order, setOrder] = useState<string>('desc')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
 
-  const { data, isLoading, isError, error } = useDevices({
+  const { data, pagination, isLoading, isError, error } = useDevices({
     page,
     pageSize,
     search,
     status: (status || undefined) as 'online' | 'offline' | 'idle' | undefined,
+    type: type || undefined,
     sort: sort as 'name' | 'lastSeen' | 'bandwidth' | undefined,
     order: order as 'asc' | 'desc' | undefined,
   })
 
   const handleRowClick = (device: DeviceDTO) => {
-    window.location.href = `/devices/${device.id}`
+    router.push(`/devices/${device.id}`)
   }
 
   return (
@@ -90,6 +95,20 @@ export default function DevicesPage() {
               <SelectItem value="">All statuses</SelectItem>
               <SelectItem value="online">Online</SelectItem>
               <SelectItem value="offline">Offline</SelectItem>
+              <SelectItem value="idle">Idle</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={type} onValueChange={setType}>
+            <SelectTrigger className="w-[160px] bg-slate-800/50 border border-slate-700">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All types</SelectItem>
+              {KNOWN_DEVICE_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={sort} onValueChange={setSort}>
@@ -139,6 +158,33 @@ export default function DevicesPage() {
           />
         )}
       </div>
+
+      {pagination && pagination.total > 0 && (
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-sm text-slate-500">
+            Showing {((page - 1) * pageSize + 1).toLocaleString()}–{Math.min(page * pageSize, pagination.total).toLocaleString()} of {pagination.total.toLocaleString()} devices
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(p - 1, 1))}
+              disabled={page === 1}
+              className="px-3 py-1.5 text-xs rounded-lg border border-slate-700 bg-slate-800 text-slate-300 disabled:opacity-50 disabled:pointer-events-none hover:bg-slate-700"
+            >
+              Prev
+            </button>
+            <span className="text-xs text-slate-500">Page {page}</span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(p + 1, Math.ceil(pagination.total / pageSize)))}
+              disabled={page * pageSize >= pagination.total}
+              className="px-3 py-1.5 text-xs rounded-lg border border-slate-700 bg-slate-800 text-slate-300 disabled:opacity-50 disabled:pointer-events-none hover:bg-slate-700"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

@@ -61,7 +61,7 @@ export default function FirewallPage() {
 
   // One shared device list: the pickers need every device, and the blocked
   // section is a filter over it, so there is nothing to keep in sync.
-  const devices = useDevices({ page: 1, pageSize: 100 })
+  const { data: devices, isLoading: devicesLoading } = useDevices({ page: 1, pageSize: 100 })
 
   const rules = useQuery({
     queryKey: ['firewall-rules'],
@@ -72,7 +72,7 @@ export default function FirewallPage() {
     },
   })
 
-  const deviceOptions = useMemo(() => devices.data ?? [], [devices.data])
+  const deviceOptions = useMemo(() => devices ?? [], [devices])
   const blockedDevices = useMemo(
     () => deviceOptions.filter((d) => d.isBlocked),
     [deviceOptions],
@@ -220,7 +220,7 @@ export default function FirewallPage() {
             </div>
           )}
 
-          {devices.isLoading ? (
+          {devicesLoading ? (
             <p className="py-6 text-center text-sm text-slate-400">Loading devices…</p>
           ) : blockedDevices.length === 0 ? (
             <p className="py-6 text-center text-sm text-slate-400">

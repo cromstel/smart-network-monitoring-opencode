@@ -11,7 +11,7 @@ interface UseDevicesOptions extends DeviceFilters {
 export function useDevices(options: UseDevicesOptions = {}) {
   const { page = 1, pageSize = 25, search, status, type, sort = 'lastSeen', order = 'desc' } = options
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['devices', { page, pageSize, search, status, type, sort, order }],
     queryFn: async () => {
       const params = new URLSearchParams()
@@ -33,10 +33,20 @@ export function useDevices(options: UseDevicesOptions = {}) {
       // device.device.lastSeen, `device.device` was undefined, and every page
       // render threw.
       const body = (await response.json()) as { data: DeviceDTO[]; pagination: Pagination }
-      return body.data
+      return { data: body.data, pagination: body.pagination }
     },
     staleTime: 5_000,
   })
+
+  // Flatten so call sites read `data` / `pagination` directly instead of
+  // `query.data.data` / `query.data.pagination`.
+  return {
+    data: query.data?.data,
+    pagination: query.data?.pagination,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+  }
 }
 
 export function useDeviceById(id: string | null) {

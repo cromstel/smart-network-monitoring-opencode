@@ -1,35 +1,84 @@
 import Link from 'next/link'
 import { headers } from 'next/headers'
 
-export default async function NotificationsPage() {
+interface NotificationItem {
+  id: string
+  title: string
+  message: string
+  priority: 'low' | 'medium' | 'high' | 'critical'
+  isRead: boolean
+  createdAt: string
+}
+
+async function fetchNotifications(): Promise<NotificationItem[]> {
   const h = await headers()
   const host = h.get('host') || 'localhost:9090'
   const protocol = h.get('x-forwarded-proto') || 'http'
   const baseUrl = `${protocol}://${host}`
-  const res = await fetch(`${baseUrl}/api/notifications`, { cache: 'no-store', headers: { cookie: h.get('cookie') || '' } })
-  const notifications = res.ok ? (await res.json()).data ?? [] : [
-    { id: '1', title: 'New device detected', message: 'Device 192.168.1.42 joined the network.', time: '2 min ago' },
-    { id: '2', title: 'Scan completed', message: 'Network scan finished: 12 devices found.', time: '15 min ago' },
-    { id: '3', title: 'Firewall blocked', message: '3 unauthorized connection attempts blocked.', time: '1 hr ago' },
-  ]
+
+  try {
+    const res = await fetch(`${baseUrl}/api/notifications`, {
+      cache: 'no-store',
+      headers: { cookie: h.get('cookie') || '' },
+    })
+    if (!res.ok) return []
+    const body = (await res.json()) as {
+      data?: { notifications?: NotificationItem[] }
+    }
+    return body.data?.notifications ?? []
+  } catch {
+    return []
+  }
+}
+
+export default async function NotificationsPage() {
+  const notifications = await fetchNotifications()
 
   return (
     <main className="px-4 py-6 md:py-8">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">Notifications</h1>
-        <Link href="/" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100">Back to dashboard</Link>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
+          Notifications
+        </h1>
+        <Link
+          href="/"
+          className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100"
+        >
+          Back to dashboard
+        </Link>
       </div>
-      <ul className="divide-y divide-slate-200 dark:divide-slate-800 space-y-3">
-        {notifications.map((n: any) => (
-          <li key={n.id}>
-            <article className="rounded-none bg-white dark:bg-slate-950 p-5 shadow-sm border border-slate-100 dark:border-slate-900">
-              <h2 className="font-semibold text-slate-800 dark:text-slate-100">{n.title}</h2>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{n.message}</p>
-              <time className="mt-3 block text-xs text-slate-400">{n.time}</time>
-            </article>
-          </li>
-        ))}
-      </ul>
+
+      {notifications.length === 0 ? (
+        <p className="text-sm text-slate-500">No notifications yet.</p>
+      ) : (
+        <ul className="divide-y divide-slate-200 dark:divide-slate-800 space-y-3">
+          {notifications.map((n) => (
+            <li key={n.id}>
+              <article
+                className="rounded-none bg-white dark:bg-slate-950 p-5 shadow-sm border border-slate-100 dark:border-slate-900"
+              >
+                <h2 className="font-semibold text-slate-800 dark:text-slate-100">
+                  {n.title}
+                </h2>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  {n.message}
+                </p>
+                <p className="mt-2 text-xs font-medium text-slate-400 uppercase tracking-wide">
+                  {n.priority}
+                </p>
+                <time className="mt-1 block text-xs text-slate-400">
+                  {new Date(n.createdAt).toLocaleString()}
+                </time>
+                {!n.isRead && (
+                  <span className="mt-2 inline-block px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-semibold">
+                    Unread
+                  </span>
+                )}
+              </article>
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   )
 }

@@ -67,12 +67,22 @@ export function useDeviceForm(device: DeviceDTO | null | undefined) {
     if (!device) return
 
     try {
+      // Omit `deviceName` when null: the Zod schema is `z.string().optional()`,
+      // so sending `null` (a device with no name) returns 400. deviceType is
+      // always a valid string and is sent on every save.
+      const body: { deviceName?: string; deviceType: DeviceType } = {
+        deviceType: formData.deviceType,
+      }
+      if (formData.deviceName !== null && formData.deviceName !== undefined) {
+        body.deviceName = formData.deviceName
+      }
+
       const response = await fetch(`/api/devices/${device.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {

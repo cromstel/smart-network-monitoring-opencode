@@ -68,3 +68,7 @@ export async function upsertProvider(input: EmailProviderInput & { id?: string }
   }
   return await findProviders()
 }
+
+export async function deleteProvider(id: string): Promise<void> {
+  await db.deleteFrom('email_providers').where('id', '=', id).execute()
+}

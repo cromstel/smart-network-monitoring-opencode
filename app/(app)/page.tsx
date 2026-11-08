@@ -180,8 +180,8 @@ export default function OverviewPage() {
                   </div>
                   <div className="flex items-center gap-4 text-right">
                     <div className="text-xs text-slate-400">
-                      <span className="text-blue-400">â†“ {consumer.downloadMbps.toFixed(1)}</span>
-                      <span className="mx-2 text-amber-400">â†‘ {consumer.uploadMbps.toFixed(1)}</span>
+                      <span className="text-blue-400">↓ {consumer.downloadMbps.toFixed(1)}</span>
+                      <span className="mx-2 text-amber-400">↑ {consumer.uploadMbps.toFixed(1)}</span>
                     </div>
                     <div className="text-slate-100 font-medium text-sm">
                       {consumer.totalMbps.toFixed(1)} Mbps

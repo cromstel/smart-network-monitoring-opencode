@@ -126,6 +126,12 @@ export default function SettingsPage() {
   })
     // --- SMTP email provider (admin-only). Reuses /api/admin/email-providers.
   const [smtpForm, setSmtpForm] = useState({ providerName: '', smtpHost: '', smtpPort: 587, smtpUser: '', smtpPass: '', isDefault: false, id: '', preset: '' })
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setSmtpForm({ providerName: '', smtpHost: '', smtpPort: 587, smtpUser: '', smtpPass: '', isDefault: false, id: '', preset: '' })
+  }
 
   const presetProviders = [
     { id: "gmail", name: "Gmail", host: "smtp.gmail.com", port: 587, user: "" },
@@ -158,10 +164,30 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email-providers'] })
+      setEditingId(null)
       setSmtpForm((f) => ({ ...f, smtpPass: '' }))
       setSmtpMessage({ tone: 'ok', text: 'SMTP provider saved.' })
     },
     onError: (e) => setSmtpMessage({ tone: 'error', text: e instanceof Error ? e.message : 'Save failed' }),
+  })
+
+  const deleteSmtp = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/email-providers?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error || body?.message || 'Failed to delete SMTP provider')
+      }
+      return await res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['email-providers'] })
+      setEditingId(null)
+      setSmtpMessage({ tone: 'ok', text: 'SMTP provider deleted.' })
+    },
+    onError: (e) => setSmtpMessage({ tone: 'error', text: e instanceof Error ? e.message : 'Delete failed' }),
   })
 
   const [routerMessage, setRouterMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
@@ -616,15 +642,20 @@ export default function SettingsPage() {
         onSubmit={(e) => {
           e.preventDefault()
           const payload: any = {}
+          if (smtpForm.id) payload.id = smtpForm.id
           if (smtpForm.providerName.trim()) payload.providerName = smtpForm.providerName.trim()
           if (smtpForm.smtpHost.trim()) payload.smtpHost = smtpForm.smtpHost.trim()
-          if (smtpForm.smtpPort) payload.smtpPort = Number(smtpForm.smtpPort)
           if (smtpForm.smtpUser.trim()) payload.smtpUser = smtpForm.smtpUser.trim()
           if (smtpForm.smtpPass) payload.smtpPass = smtpForm.smtpPass
-          if (smtpForm.id) payload.id = smtpForm.id
-          if (smtpForm.isDefault !== undefined) payload.isDefault = smtpForm.isDefault
-          if (Object.keys(payload).length < 1) {
-            setSmtpMessage({ tone: 'error', text: 'Enter at least one value to save.' })
+          payload.smtpPort = smtpForm.smtpPort ?? 587
+          payload.isDefault = smtpForm.isDefault ?? false
+
+          if (!payload.providerName) {
+            setSmtpMessage({ tone: 'error', text: 'Provider name is required.' })
+            return
+          }
+          if (!payload.id && !payload.smtpHost) {
+            setSmtpMessage({ tone: 'error', text: 'SMTP host is required for a new provider.' })
             return
           }
           saveSmtp.mutate(payload)
@@ -632,7 +663,7 @@ export default function SettingsPage() {
         className="space-y-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/50 p-5"
       >
         <fieldset className="space-y-4">
-          <legend className="text-sm font-medium text-slate-300">SMTP email provider � admin only</legend>
+          <legend className="text-sm font-medium text-slate-300">SMTP email provider — admin only</legend>
           <p className="text-xs text-slate-500">
             Configures the mail server used for admin notifications. The password is write-only and never shown again.
           </p>
@@ -726,6 +757,83 @@ export default function SettingsPage() {
             ? 'Saved: ' + emailProviders.data.data.map((p) => p.providerName).join(', ')
             : 'No SMTP provider configured yet.'}
         </p>
+
+        {emailProviders.data?.data && emailProviders.data.data.length > 0 && (
+          <div className="mt-5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/50 p-4">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
+              Configured providers
+              {editingId !== null && (
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="text-xs text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 underline"
+                >
+                  Cancel edit
+                </button>
+              )}
+            </h3>
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+              {emailProviders.data.data.map((p) => (
+                <li key={p.id} className="flex items-center justify-between gap-3 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <div className="flex items-center gap-3 flex-1">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{p.providerName}</p>
+                      <p className="text-xs text-slate-500">
+                        {p.smtpHost}:{p.smtpPort}{p.smtpUser ? ` · ${p.smtpUser}` : ''}
+                      </p>
+                    </div>
+                    {p.isDefault && (
+                      <span className="text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded">
+                        Default
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {editingId === p.id ? (
+                      <button
+                        type="button"
+                        onClick={handleCancelEdit}
+                        className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                      >
+                        Cancel
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingId(p.id)
+                            setSmtpForm({
+                              id: p.id,
+                              providerName: p.providerName,
+                              smtpHost: p.smtpHost,
+                              smtpPort: p.smtpPort,
+                              smtpUser: p.smtpUser,
+                              smtpPass: '',
+                              isDefault: p.isDefault,
+                              preset: 'custom',
+                            })
+                          }}
+                          className="text-xs text-slate-400 hover:text-blue-400 dark:hover:text-blue-300"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteSmtp.mutate(p.id)}
+                          className="text-xs text-slate-400 hover:text-red-400 dark:hover:text-red-400"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {smtpMessage && (
           <p
             role="status"
@@ -744,7 +852,11 @@ export default function SettingsPage() {
             disabled={saveSmtp.isPending}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
           >
-            {saveSmtp.isPending ? 'Saving...' : 'Save SMTP'}
+            {saveSmtp.isPending
+              ? editingId ? 'Updating...' : 'Saving...'
+              : editingId
+                ? 'Update SMTP'
+                : 'Save SMTP'}
           </button>
         )}
       </form>

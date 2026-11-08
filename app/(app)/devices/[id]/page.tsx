@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useDeviceById, useDeviceBandwidth, useDeviceConnectionLogs } from '@/lib/hooks/useDevices'
 import { useDeviceForm } from '@/lib/hooks/useDeviceForm'
 import {
@@ -118,8 +119,8 @@ export default function DeviceDetailPage() {
             {device.deviceName || device.hostname || device.macAddress}
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            MAC: {device.macAddress} Â· IP: {device.ipAddress}
-            {device.hostname && ` Â· Hostname: ${device.hostname}`}
+            MAC: {device.macAddress} · IP: {device.ipAddress}
+            {device.hostname && ` · Hostname: ${device.hostname}`}
           </p>
         </div>
         <Dialog open={isEditing} onOpenChange={handleOpenChange}>
@@ -175,7 +176,13 @@ export default function DeviceDetailPage() {
             </form>
           </DialogContent>
         </Dialog>
-      </header>
+          <Link
+            href="/devices"
+            className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            ← Back to devices
+          </Link>
+        </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-6">
@@ -187,12 +194,19 @@ export default function DeviceDetailPage() {
                 'inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium',
                 device.status === 'online'
                   ? 'bg-green-500/20 text-green-400'
-                  : 'bg-slate-700 text-slate-400'
+                  : device.status === 'idle'
+                    ? 'bg-amber-500/20 text-amber-400'
+                    : 'bg-slate-700 text-slate-400'
               )}>
                 {device.status === 'online' ? (
                   <>
                     <Wifi className="h-4 w-4" />
                     Online
+                  </>
+                ) : device.status === 'idle' ? (
+                  <>
+                    <AlertTriangle className="h-4 w-4" />
+                    Idle
                   </>
                 ) : (
                   <>
