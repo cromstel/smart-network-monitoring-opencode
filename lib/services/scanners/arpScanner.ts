@@ -1,9 +1,10 @@
 import { Scanner, DiscoveredDevice } from './types'
-import { spawn } from 'node:child_process'
+import { spawn, execFileSync } from 'node:child_process'
 import { logger } from '@/lib/utils/logger'
 import { getConfig } from '@/lib/config'
 
 const ARP_SCAN_BIN = process.platform === 'win32' ? 'arp-scan.exe' : 'arp-scan'
+const IP_NEIGH_BIN = process.platform === 'win32' ? 'netsh.exe' : 'ip'
 const CACHE_TTL = 5 * 60 * 1000
 
 /**
@@ -83,6 +84,25 @@ function parseArpScanOutput(output: string): DiscoveredDevice[] {
   const lines = output.split('\n')
   const macRegex = /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i
 
+  // Build a MAC -> IPv6 map from `ip -6 neigh` so each discovered device can
+  // be annotated with its IPv6 address when the kernel knows it.
+  const ipv6ByMac = new Map<string, string>()
+  try {
+    const result = execFileSync(IP_NEIGH_BIN, ['-6', 'neigh', 'show'], { timeout: 10_000, encoding: 'utf8' })
+    const out = result ?? ''
+    for (const line of out.split('\n')) {
+      const parts = line.trim().split(/\s+/)
+      const lladdrIdx = parts.indexOf('lladdr')
+      if (lladdrIdx < 0 || lladdrIdx + 1 >= parts.length) continue
+      const mac = parts[lladdrIdx + 1].toUpperCase()
+      if (!macRegex.test(mac)) continue
+      // First token is the IPv6 address.
+      ipv6ByMac.set(mac, parts[0])
+    }
+  } catch {
+    // `ip` may not exist (e.g. Windows, minimal containers) — IPv6 stays null.
+  }
+
   for (const line of lines) {
     const parts = line.trim().split(/\s+/)
     if (parts.length < 3) continue
@@ -91,7 +111,7 @@ function parseArpScanOutput(output: string): DiscoveredDevice[] {
     devices.push({
       macAddress: mac.toUpperCase(),
       ipAddress: ip,
-      ipv6Address: null,
+      ipv6Address: ipv6ByMac.get(mac.toUpperCase()) ?? null,
       hostname: rest.length > 0 ? rest.join(' ') : undefined,
       signalStrength: undefined,
     })

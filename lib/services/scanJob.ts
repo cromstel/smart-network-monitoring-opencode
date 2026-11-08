@@ -4,6 +4,7 @@ import { insert as insertConnectionLog } from '@/lib/db/repositories/connectionL
 import { insertScanHistory } from '@/lib/db/repositories/scanHistoryRepository'
 import { logger } from '@/lib/utils/logger'
 import { eventBusInstance, type ScanCompletedEvent } from '@/lib/services/eventBus'
+import { recordLease } from '@/lib/services/dhcpLeaseService'
 import { markStaleDevicesOffline, getDeviceById } from '@/lib/services/deviceService'
 import {
   evaluateUnknownDevice,
@@ -279,6 +280,26 @@ async function ingest(
   const device = await findByMac(mac)
   if (!device) {
     throw new Error(`device ${mac} vanished immediately after upsert`)
+  }
+
+  // F-43: record a DHCP lease for every discovered device.
+  try {
+    const now = new Date()
+    const effective = await getEffectiveScanSettings()
+    const leaseEnd = effective.scanIntervalSeconds
+      ? new Date(now.getTime() + effective.scanIntervalSeconds * 1000).toISOString()
+      : null
+    await recordLease(
+      device.id,
+      d.ipAddress,
+      mac,
+      d.hostname ?? null,
+      now.toISOString(),
+      leaseEnd
+    )
+  } catch (err) {
+    // Lease recording is observability; never fail ingestion over it.
+    logger.error({ err, mac }, 'failed to record DHCP lease')
   }
 
   if (!existing) {

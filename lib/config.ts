@@ -29,7 +29,7 @@ const envSchema = z.object({
   SESSION_SECRET: z.string(), 
   ENCRYPTION_KEY: z.string(),
   NETWORK_SUBNET: z.string().default('192.168.1.0/24'),
-  SCANNER_MODE: z.enum(['simulated', 'arp', 'asus']).default('simulated'),
+  SCANNER_MODE: z.enum(['simulated', 'arp', 'asus', 'tplink', 'netgear']).default('simulated'),
   SCAN_INTERVAL_SECONDS: z.coerce.number().int().min(30).max(3600).default(30),
   DATA_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

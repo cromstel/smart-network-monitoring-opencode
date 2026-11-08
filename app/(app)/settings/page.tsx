@@ -432,6 +432,8 @@ export default function SettingsPage() {
                 className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100"
               >
                 <option value="asus">ASUS</option>
+                <option value="tplink">TP-Link</option>
+                <option value="netgear">Netgear</option>
                 <option value="arp">ARP scan</option>
                 <option value="simulated">Simulated</option>
               </select>

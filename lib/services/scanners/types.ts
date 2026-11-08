@@ -27,10 +27,10 @@ export interface DiscoveredDevice {
 }
 
 export interface Scanner {
-  readonly name: 'simulated' | 'arp' | 'asus'
+  readonly name: ScannerMode
   isAvailable(): Promise<boolean>
   scan(subnet: string): Promise<DiscoveredDevice[]>
   _cachedAvailable?: boolean | null
 }
 
-export type ScannerMode = 'simulated' | 'arp' | 'asus'
+export type ScannerMode = 'simulated' | 'arp' | 'asus' | 'tplink' | 'netgear'

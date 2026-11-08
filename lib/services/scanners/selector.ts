@@ -2,6 +2,8 @@ import { Scanner, ScannerMode } from './types'
 import { simulatedScanner } from './simulatedScanner'
 import { arpScanner } from './arpScanner'
 import { asusScanner } from './asusScanner'
+import { tplinkScanner } from './tplinkScanner'
+import { netgearScanner } from './netgearScanner'
 import { getConfig } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
 
@@ -33,7 +35,25 @@ export async function selectScanner(): Promise<Scanner> {
       logger.info({ scanner: 'asus' }, 'ASUS router scanner available, using it')
       return asusScanner
     }
-    logger.warn({ fallback: 'arp' }, 'ASUS router scanner unavailable, falling back to ARP')
+    logger.warn({ fallback: 'tplink' }, 'ASUS router scanner unavailable, trying TP-Link')
+  }
+
+  if (tplinkScanner) {
+    const available = await tplinkScanner.isAvailable()
+    if (available) {
+      logger.info({ scanner: 'tplink' }, 'TP-Link router scanner available, using it')
+      return tplinkScanner
+    }
+    logger.warn({ fallback: 'netgear' }, 'TP-Link router scanner unavailable, trying Netgear')
+  }
+
+  if (netgearScanner) {
+    const available = await netgearScanner.isAvailable()
+    if (available) {
+      logger.info({ scanner: 'netgear' }, 'Netgear router scanner available, using it')
+      return netgearScanner
+    }
+    logger.warn({ fallback: 'arp' }, 'Netgear router scanner unavailable, falling back to ARP')
   }
 
   const arpAvailable = await arpScanner.isAvailable()
@@ -52,6 +72,10 @@ async function getNamedScanner(mode: ScannerMode): Promise<Scanner | null> {
       return arpScanner
     case 'asus':
       return asusScanner
+    case 'tplink':
+      return tplinkScanner
+    case 'netgear':
+      return netgearScanner
     default:
       return null
   }
