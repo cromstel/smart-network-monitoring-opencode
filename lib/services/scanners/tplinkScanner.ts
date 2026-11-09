@@ -99,9 +99,22 @@ interface TplinkDevice {
   online?: number
 }
 
+export interface TplinkDhcpLease {
+  mac: string
+  ip: string
+  hostname?: string
+  expires?: string
+}
+
 interface TplinkResponse {
   success: boolean
   devices?: TplinkDevice[]
+  error?: string
+}
+
+interface TplinkDhcpResponse {
+  success: boolean
+  leases?: TplinkDhcpLease[]
   error?: string
 }
 
@@ -146,7 +159,7 @@ export const tplinkScanner: Scanner = {
     }
   },
 
-  async scan(subnet: string): Promise<DiscoveredDevice[]> {
+  async scan(subnet: string): Promise<{ devices: DiscoveredDevice[]; dhcpLeases: TplinkDhcpLease[] }> {
     const config = await getRouterConfig()
     if (!config) {
       throw new Error('No TP-Link router configured or not connected')
@@ -158,17 +171,16 @@ export const tplinkScanner: Scanner = {
     }
 
     try {
-      const response = await makeRequest<TplinkResponse>(
-        config,
-        '/userdata/DevicelistRpm.js',
-        'GET'
-      )
+      const [deviceResponse, dhcpResponse] = await Promise.allSettled([
+        makeRequest<TplinkResponse>(config, '/userdata/DevicelistRpm.js', 'GET'),
+        makeRequest<TplinkDhcpResponse>(config, '/userRpm/AssignedIpAddrListRpm.js', 'GET'),
+      ])
 
-      if (!response.success || !response.devices) {
-        throw new Error(response.error || 'Invalid response from TP-Link router')
+      if (deviceResponse.status !== 'fulfilled' || !deviceResponse.value.success || !deviceResponse.value.devices) {
+        throw new Error(deviceResponse.status === 'fulfilled' ? deviceResponse.value.error || 'Invalid response from TP-Link router' : 'Failed to fetch device list')
       }
 
-      const devices: DiscoveredDevice[] = response.devices
+      const devices: DiscoveredDevice[] = deviceResponse.value.devices
         .filter((d) => d.online === 1 || d.online === undefined)
         .map((d) => ({
           macAddress: d.mac.toUpperCase(),
@@ -178,7 +190,11 @@ export const tplinkScanner: Scanner = {
           signalStrength: undefined,
         }))
 
-      return devices
+      const dhcpLeases: TplinkDhcpLease[] = dhcpResponse.status === 'fulfilled' && dhcpResponse.value.success && dhcpResponse.value.leases
+        ? dhcpResponse.value.leases
+        : []
+
+      return { devices, dhcpLeases }
     } catch (error) {
       logger.error({ scanner: 'tplink', error: error instanceof Error ? error.message : String(error) }, 'TP-Link scanner failed')
       throw error

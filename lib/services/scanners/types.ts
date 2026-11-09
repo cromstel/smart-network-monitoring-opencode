@@ -29,7 +29,7 @@ export interface DiscoveredDevice {
 export interface Scanner {
   readonly name: ScannerMode
   isAvailable(): Promise<boolean>
-  scan(subnet: string): Promise<DiscoveredDevice[]>
+  scan(subnet: string): Promise<DiscoveredDevice[] | { devices: DiscoveredDevice[]; dhcpLeases: Array<{ mac: string; ip: string; hostname?: string; expires?: string }> }>
   _cachedAvailable?: boolean | null
 }
 

@@ -275,6 +275,26 @@ When you finish a task: tick it, and if it changed a decision, add a line to `ME
     mocked `fetch` — worth doing before relying on it
 - [x] **B-55 — Settings UI** (L)
   - AC: Zod-validated at the route boundary, persisted per user
+- [x] **B-71 — ASUS scanner IPv6 support** (M)
+  - Added `wl_clientlist6()` endpoint call to fetch IPv6 client list
+  - Merges IPv6 addresses into device results via MAC matching
+  - Returns `ipv6Address` in `DiscoveredDevice` for ASUS scanner
+- [x] **B-72 — TP-Link scanner DHCP lease endpoint** (M)
+  - Added `/userRpm/AssignedIpAddrListRpm.js` endpoint call
+  - Returns DHCP lease list with MAC, IP, hostname, expiry
+  - Integrated with scanJob DHCP lease recording
+- [x] **B-73 — Netgear scanner DHCP lease endpoint** (M)
+  - Added `/DHCPList.htm` endpoint call
+  - Returns DHCP lease list with MAC, IP, hostname, expiry
+  - Integrated with scanJob DHCP lease recording
+- [x] **B-74 — ARP scanner IPv6 on Windows** (S)
+  - Added `netsh interface ipv6 show neighbors` parsing
+  - Falls back gracefully on platforms where `netsh` is unavailable
+  - Returns `ipv6Address` in `DiscoveredDevice` for ARP scanner
+- [x] **B-75 — DHCP lease recording from router scanners** (M)
+  - Extended `scanJob.ts` to capture DHCP leases from ASUS/TP-Link/Netgear scanners
+  - Records leases after device ingestion so device rows exist
+  - Uses `recordLease()` with proper lease expiry calculation
 
 ---
 

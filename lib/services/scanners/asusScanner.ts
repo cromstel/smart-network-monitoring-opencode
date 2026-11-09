@@ -20,6 +20,14 @@ interface AsusDevice {
   name: string
   rssi?: number
   online: number
+  ipv6?: string
+}
+
+export interface AsusDhcpLease {
+  mac: string
+  ip: string
+  hostname?: string
+  expires?: string
 }
 
 interface AsusResponse {
@@ -155,7 +163,7 @@ export const asusScanner: Scanner = {
     }
   },
 
-  async scan(subnet: string): Promise<DiscoveredDevice[]> {
+  async scan(subnet: string): Promise<{ devices: DiscoveredDevice[]; dhcpLeases: AsusDhcpLease[] }> {
     const config = await getRouterConfig()
     if (!config) {
       throw new Error('No ASUS router configured or not connected')
@@ -167,23 +175,42 @@ export const asusScanner: Scanner = {
     }
 
     try {
-      const response = await makeRequest<AsusResponse>(config, '/appGet.cgi?hook=wl_clientlist()', 'GET')
+      // Fetch wireless client list (IPv4 + IPv6 if available)
+      const [clientResponse, ipv6Response, dhcpResponse] = await Promise.allSettled([
+        makeRequest<AsusResponse>(config, '/appGet.cgi?hook=wl_clientlist()', 'GET'),
+        makeRequest<AsusResponse>(config, '/appGet.cgi?hook=wl_clientlist6()', 'GET'),
+        makeRequest<{ success: boolean; leases?: AsusDhcpLease[]; error?: string }>(config, '/appGet.cgi?hook=dhcpd_lease()', 'GET'),
+      ])
 
-      if (!response.success || !response.devices) {
-        throw new Error(response.error || 'Invalid response from ASUS router')
+      if (clientResponse.status !== 'fulfilled' || !clientResponse.value.success || !clientResponse.value.devices) {
+        throw new Error(clientResponse.status === 'fulfilled' ? clientResponse.value.error || 'Invalid response from ASUS router' : 'Failed to fetch client list')
       }
 
-      const devices: DiscoveredDevice[] = response.devices
+      // Build IPv6 map from IPv6 client list if available
+      const ipv6ByMac = new Map<string, string>()
+      if (ipv6Response.status === 'fulfilled' && ipv6Response.value.success && ipv6Response.value.devices) {
+        for (const d of ipv6Response.value.devices) {
+          if (d.mac && d.ipv6) {
+            ipv6ByMac.set(d.mac.toUpperCase(), d.ipv6)
+          }
+        }
+      }
+
+      const devices: DiscoveredDevice[] = clientResponse.value.devices
         .filter((d) => d.online === 1)
         .map((d) => ({
           macAddress: d.mac.toUpperCase(),
           ipAddress: d.ip,
-          ipv6Address: null,
+          ipv6Address: ipv6ByMac.get(d.mac.toUpperCase()) ?? d.ipv6 ?? null,
           hostname: d.name || undefined,
           signalStrength: d.rssi !== undefined ? d.rssi : undefined,
         }))
 
-      return devices
+      const dhcpLeases: AsusDhcpLease[] = dhcpResponse.status === 'fulfilled' && dhcpResponse.value.success && dhcpResponse.value.leases
+        ? dhcpResponse.value.leases
+        : []
+
+      return { devices, dhcpLeases }
     } catch (error) {
       logger.error({ scanner: 'asus', error: error instanceof Error ? error.message : String(error) }, 'ASUS scanner failed')
       throw error

@@ -84,23 +84,54 @@ function parseArpScanOutput(output: string): DiscoveredDevice[] {
   const lines = output.split('\n')
   const macRegex = /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i
 
-  // Build a MAC -> IPv6 map from `ip -6 neigh` so each discovered device can
-  // be annotated with its IPv6 address when the kernel knows it.
+  // Build a MAC -> IPv6 map from kernel neighbor tables so each discovered
+  // device can be annotated with its IPv6 address when the kernel knows it.
+  // Linux: `ip -6 neigh show`
+  // Windows: `netsh interface ipv6 show neighbors`
   const ipv6ByMac = new Map<string, string>()
   try {
-    const result = execFileSync(IP_NEIGH_BIN, ['-6', 'neigh', 'show'], { timeout: 10_000, encoding: 'utf8' })
-    const out = result ?? ''
-    for (const line of out.split('\n')) {
-      const parts = line.trim().split(/\s+/)
-      const lladdrIdx = parts.indexOf('lladdr')
-      if (lladdrIdx < 0 || lladdrIdx + 1 >= parts.length) continue
-      const mac = parts[lladdrIdx + 1].toUpperCase()
-      if (!macRegex.test(mac)) continue
-      // First token is the IPv6 address.
-      ipv6ByMac.set(mac, parts[0])
+    if (process.platform === 'win32') {
+      // netsh interface ipv6 show neighbors
+      // Output format:
+      // Interface 18: Wi-Fi
+      //  Internet Address                              Physical Address  Type
+      //  fe80::b4b0:24ff:fe73:c944                     b4-b0-24-73-c9-44  Unreachable
+      //  2001:db8::1                                   b4-b0-24-73-c9-44  Reachable
+      const result = execFileSync(IP_NEIGH_BIN, ['interface', 'ipv6', 'show', 'neighbors'], { timeout: 10_000, encoding: 'utf8' })
+      const out = result ?? ''
+      const macRegex2 = /([0-9a-f]{2}-){5}[0-9a-f]{2}/i
+      for (const line of out.split('\n')) {
+        const parts = line.trim().split(/\s+/)
+        // First IPv6 address, then MAC with hyphens
+        const macMatch = parts.find(p => macRegex2.test(p))
+        if (macMatch) {
+          const mac = macMatch.replace(/-/g, ':').toUpperCase()
+          if (!macRegex.test(mac)) continue
+          // IPv6 address is the first token that looks like an IPv6 address
+          const ipv6 = parts.find(p => p.includes(':') && p.length > 15)
+          if (ipv6) {
+            ipv6ByMac.set(mac, ipv6)
+          }
+        }
+      }
+    } else {
+      // Linux: `ip -6 neigh show`
+      // Output format:
+      // fe80::b4b0:24ff:fe73:c944 dev eth0 lladdr b4:b0:24:73:c9:44 REACHABLE
+      const result = execFileSync(IP_NEIGH_BIN, ['-6', 'neigh', 'show'], { timeout: 10_000, encoding: 'utf8' })
+      const out = result ?? ''
+      for (const line of out.split('\n')) {
+        const parts = line.trim().split(/\s+/)
+        const lladdrIdx = parts.indexOf('lladdr')
+        if (lladdrIdx < 0 || lladdrIdx + 1 >= parts.length) continue
+        const mac = parts[lladdrIdx + 1].toUpperCase()
+        if (!macRegex.test(mac)) continue
+        // First token is the IPv6 address.
+        ipv6ByMac.set(mac, parts[0])
+      }
     }
   } catch {
-    // `ip` may not exist (e.g. Windows, minimal containers) — IPv6 stays null.
+    // `ip`/`netsh` may not exist or fail — IPv6 stays null.
   }
 
   for (const line of lines) {

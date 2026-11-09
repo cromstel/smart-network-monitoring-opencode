@@ -17,6 +17,9 @@ import { getEffectiveScanSettings } from '@/lib/services/runtimeSettings'
 import { lookupVendor, normalizeMac } from './oui'
 import type { Device } from '@/lib/types'
 import type { DiscoveredDevice } from './scanners/types'
+import type { AsusDhcpLease } from './scanners/asusScanner'
+import type { TplinkDhcpLease } from './scanners/tplinkScanner'
+import type { NetgearDhcpLease } from './scanners/netgearScanner'
 
 export interface ScanResult {
   scanner: string
@@ -67,8 +70,17 @@ export async function scanOnce(): Promise<ScanResult> {
   // rethrow gives the admin group the one signal the log alone would hide —
   // the rethrow is kept so the scheduler's own error handling is unchanged.
   let discovered: DiscoveredDevice[]
+  let dhcpLeases: (AsusDhcpLease | TplinkDhcpLease | NetgearDhcpLease)[] = []
   try {
-    discovered = await scanner.scan(effective.subnet)
+    const rawResult = await scanner.scan(effective.subnet)
+    const scanResult = rawResult as DiscoveredDevice[] | { devices: DiscoveredDevice[]; dhcpLeases: (AsusDhcpLease | TplinkDhcpLease | NetgearDhcpLease)[] }
+    // ASUS/TP-Link/Netgear scanners return { devices, dhcpLeases }, others return DiscoveredDevice[]
+    if ((scanner.name === 'asus' || scanner.name === 'tplink' || scanner.name === 'netgear') && typeof scanResult === 'object' && 'devices' in scanResult) {
+      discovered = scanResult.devices
+      dhcpLeases = scanResult.dhcpLeases
+    } else {
+      discovered = scanResult as DiscoveredDevice[]
+    }
   } catch (err) {
     try {
       const event: ScanCompletedEvent = {
@@ -110,6 +122,33 @@ export async function scanOnce(): Promise<ScanResult> {
     } catch (err) {
       errors += 1
       logger.error({ err, mac: d.macAddress }, 'failed to ingest discovered device')
+    }
+  }
+
+  // Record DHCP leases from ASUS scanner (if any) after all devices are ingested
+  // so device rows exist.
+  for (const lease of dhcpLeases) {
+    try {
+      // Find the device by MAC to get its ID.
+      const device = await findByMac(normalizeMac(lease.mac))
+      if (!device) continue
+      const now = new Date()
+      const effective = await getEffectiveScanSettings()
+      const leaseEnd = lease.expires
+        ? new Date(lease.expires).toISOString()
+        : effective.scanIntervalSeconds
+          ? new Date(now.getTime() + effective.scanIntervalSeconds * 1000).toISOString()
+          : null
+      await recordLease(
+        device.id,
+        lease.ip,
+        lease.mac,
+        lease.hostname ?? null,
+        now.toISOString(),
+        leaseEnd
+      )
+    } catch (err) {
+      logger.error({ err, mac: lease.mac }, 'failed to record DHCP lease from router scanner')
     }
   }
 

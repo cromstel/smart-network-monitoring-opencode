@@ -98,9 +98,22 @@ interface NetgearDevice {
   devicename?: string
 }
 
+export interface NetgearDhcpLease {
+  mac: string
+  ip: string
+  hostname?: string
+  expires?: string
+}
+
 interface NetgearResponse {
   result: string
   device_list?: NetgearDevice[]
+  error?: string
+}
+
+interface NetgearDhcpResponse {
+  result: string
+  leases?: NetgearDhcpLease[]
   error?: string
 }
 
@@ -145,7 +158,7 @@ export const netgearScanner: Scanner = {
     }
   },
 
-  async scan(subnet: string): Promise<DiscoveredDevice[]> {
+  async scan(subnet: string): Promise<{ devices: DiscoveredDevice[]; dhcpLeases: NetgearDhcpLease[] }> {
     const config = await getRouterConfig()
     if (!config) {
       throw new Error('No Netgear router configured or not connected')
@@ -157,17 +170,16 @@ export const netgearScanner: Scanner = {
     }
 
     try {
-      const response = await makeRequest<NetgearResponse>(
-        config,
-        '/RPM_DevInfo.htm',
-        'GET'
-      )
+      const [deviceResponse, dhcpResponse] = await Promise.allSettled([
+        makeRequest<NetgearResponse>(config, '/RPM_DevInfo.htm', 'GET'),
+        makeRequest<NetgearDhcpResponse>(config, '/DHCPList.htm', 'GET'),
+      ])
 
-      if (response.result !== 'success' || !response.device_list) {
-        throw new Error(response.error || 'Invalid response from Netgear router')
+      if (deviceResponse.status !== 'fulfilled' || deviceResponse.value.result !== 'success' || !deviceResponse.value.device_list) {
+        throw new Error(deviceResponse.status === 'fulfilled' ? deviceResponse.value.error || 'Invalid response from Netgear router' : 'Failed to fetch device list')
       }
 
-      const devices: DiscoveredDevice[] = response.device_list.map((d) => ({
+      const devices: DiscoveredDevice[] = deviceResponse.value.device_list.map((d) => ({
         macAddress: d.macaddr.toUpperCase(),
         ipAddress: d.ipaddr,
         ipv6Address: null,
@@ -175,7 +187,11 @@ export const netgearScanner: Scanner = {
         signalStrength: undefined,
       }))
 
-      return devices
+      const dhcpLeases: NetgearDhcpLease[] = dhcpResponse.status === 'fulfilled' && dhcpResponse.value.result === 'success' && dhcpResponse.value.leases
+        ? dhcpResponse.value.leases
+        : []
+
+      return { devices, dhcpLeases }
     } catch (error) {
       logger.error({ scanner: 'netgear', error: error instanceof Error ? error.message : String(error) }, 'Netgear scanner failed')
       throw error
