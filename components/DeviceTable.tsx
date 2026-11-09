@@ -1,8 +1,14 @@
-import { AlertTriangle, Search } from 'lucide-react'
+import { AlertTriangle, Search, MoreHorizontal, Shield, ShieldOff, Edit2 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatBytes } from '@/lib/utils/format'
 import type { DeviceStatus } from '@/lib/types'
 import type { DeviceDTO } from '@/lib/api/serialisers'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 /**
  * The device list.
@@ -47,6 +53,7 @@ const COLUMNS = [
   'Last seen',
   'Bandwidth',
   'Total',
+  'Actions',
 ] as const
 
 function StatusBadge({ status }: { status: DeviceStatus }) {
@@ -68,6 +75,8 @@ export interface DeviceTableProps {
   isError: boolean
   error: Error | null
   onRowClick: (device: DeviceDTO) => void
+  onBlockDevice?: (deviceId: string) => Promise<void>
+  onUnblockDevice?: (deviceId: string) => Promise<void>
 }
 
 export function DeviceTable({
@@ -76,6 +85,8 @@ export function DeviceTable({
   isError,
   error,
   onRowClick,
+  onBlockDevice,
+  onUnblockDevice,
 }: Readonly<DeviceTableProps>) {
   if (isError) {
     return (
@@ -185,6 +196,66 @@ export function DeviceTable({
                   <span className="block text-slate-500">
                     ↑ {formatBytes(device.totalTransferred.uploadBytes)}
                   </span>
+                </td>
+                <td className="px-4 py-3">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors"
+                        aria-label="Device actions"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          // Navigate to device detail for rename
+                          window.location.href = `/devices/${device.id}`
+                        }}
+                      >
+                        <Edit2 className="h-4 w-4 mr-2" />
+                        Rename
+                      </DropdownMenuItem>
+                      {device.isBlocked ? (
+                        <DropdownMenuItem
+                          onClick={async (e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            if (onUnblockDevice) {
+                              try {
+                                await onUnblockDevice(device.id)
+                              } catch (err) {
+                                console.error('Failed to unblock device:', err)
+                              }
+                            }
+                          }}
+                        >
+                          <ShieldOff className="h-4 w-4 mr-2" />
+                          Unblock
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          onClick={async (e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            if (onBlockDevice) {
+                              try {
+                                await onBlockDevice(device.id)
+                              } catch (err) {
+                                console.error('Failed to block device:', err)
+                              }
+                            }
+                          }}
+                        >
+                          <Shield className="h-4 w-4 mr-2" />
+                          Block
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </td>
               </tr>
             )

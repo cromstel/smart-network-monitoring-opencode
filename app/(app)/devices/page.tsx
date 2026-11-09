@@ -78,6 +78,34 @@ export default function DevicesPage() {
     router.push(`/devices/${device.id}`)
   }
 
+  const handleBlockDevice = async (deviceId: string) => {
+    try {
+      const res = await fetch(`/api/firewall/devices/${deviceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isBlocked: true }),
+      })
+      if (!res.ok) throw new Error('Failed to block device')
+    } catch (err) {
+      console.error('Failed to block device:', err)
+      throw err
+    }
+  }
+
+  const handleUnblockDevice = async (deviceId: string) => {
+    try {
+      const res = await fetch(`/api/firewall/devices/${deviceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isBlocked: false }),
+      })
+      if (!res.ok) throw new Error('Failed to unblock device')
+    } catch (err) {
+      console.error('Failed to unblock device:', err)
+      throw err
+    }
+  }
+
   const exportCsv = () => {
     if (!data?.length) return
     const headers = [
@@ -137,67 +165,73 @@ export default function DevicesPage() {
             className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="w-[160px] bg-slate-800/50 border border-slate-700">
-              <SelectValue placeholder="All statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All statuses</SelectItem>
-              <SelectItem value="online">Online</SelectItem>
-              <SelectItem value="offline">Offline</SelectItem>
-              <SelectItem value="idle">Idle</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={type} onValueChange={setType}>
-            <SelectTrigger className="w-[160px] bg-slate-800/50 border border-slate-700">
-              <SelectValue placeholder="All types" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All types</SelectItem>
-              {KNOWN_DEVICE_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t}
+        <div className="flex flex-col sm:flex-row items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="text-xs font-medium text-slate-400 whitespace-nowrap">Filters:</label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All statuses</SelectItem>
+                <SelectItem value="online">Online</SelectItem>
+                <SelectItem value="offline">Offline</SelectItem>
+                <SelectItem value="idle">Idle</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={type} onValueChange={setType}>
+              <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All types</SelectItem>
+                {KNOWN_DEVICE_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All categories</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="text-xs font-medium text-slate-400 whitespace-nowrap">Sort:</label>
+            <Select value={sort} onValueChange={setSort}>
+              <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
+                <SelectValue placeholder="Sort by">{SORT_LABELS[sort] ?? sort}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="lastSeen">Last Seen</SelectItem>
+                <SelectItem value="name">Name</SelectItem>
+                <SelectItem value="bandwidth">Bandwidth</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={order} onValueChange={setOrder}>
+              <SelectTrigger className="w-[130px] bg-slate-800/50 border border-slate-700">
+                <SelectValue placeholder="Order">{ORDER_LABELS[order] ?? order}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="asc">
+                  <ChevronUp className="h-4 w-4 mr-2" /> Ascending
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="w-[160px] bg-slate-800/50 border border-slate-700">
-              <SelectValue placeholder="All categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All categories</SelectItem>
-              {categories.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
+                <SelectItem value="desc">
+                  <ChevronDown className="h-4 w-4 mr-2" /> Descending
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={sort} onValueChange={setSort}>
-            <SelectTrigger className="w-[160px] bg-slate-800/50 border border-slate-700">
-              <SelectValue placeholder="Sort by">{SORT_LABELS[sort] ?? sort}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="lastSeen">Last Seen</SelectItem>
-              <SelectItem value="name">Name</SelectItem>
-              <SelectItem value="bandwidth">Bandwidth</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={order} onValueChange={setOrder}>
-            <SelectTrigger className="w-[120px] bg-slate-800/50 border border-slate-700">
-              <SelectValue placeholder="Order">{ORDER_LABELS[order] ?? order}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="asc">
-                <ChevronUp className="h-4 w-4 mr-2" /> Ascending
-              </SelectItem>
-              <SelectItem value="desc">
-                <ChevronDown className="h-4 w-4 mr-2" /> Descending
-              </SelectItem>
-            </SelectContent>
-          </Select>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -230,6 +264,8 @@ export default function DevicesPage() {
             isError={isError}
             error={error}
             onRowClick={handleRowClick}
+            onBlockDevice={handleBlockDevice}
+            onUnblockDevice={handleUnblockDevice}
           />
         )}
       </div>
