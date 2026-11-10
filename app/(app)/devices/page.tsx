@@ -155,83 +155,71 @@ export default function DevicesPage() {
         </p>
       </header>
 
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="relative flex-1 max-w-md">
-          <input
-            type="text"
-            placeholder="Search devices..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-xs font-medium text-slate-400 whitespace-nowrap">Filters:</label>
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All statuses</SelectItem>
+              <SelectItem value="online">Online</SelectItem>
+              <SelectItem value="offline">Offline</SelectItem>
+              <SelectItem value="idle">Idle</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={type} onValueChange={setType}>
+            <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All types</SelectItem>
+              {KNOWN_DEVICE_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All categories</SelectItem>
+              {categories.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <div className="flex flex-col sm:flex-row items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 flex-wrap">
-            <label className="text-xs font-medium text-slate-400 whitespace-nowrap">Filters:</label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">All statuses</SelectItem>
-                <SelectItem value="online">Online</SelectItem>
-                <SelectItem value="offline">Offline</SelectItem>
-                <SelectItem value="idle">Idle</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={type} onValueChange={setType}>
-              <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">All types</SelectItem>
-                {KNOWN_DEVICE_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">All categories</SelectItem>
-                {categories.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <label className="text-xs font-medium text-slate-400 whitespace-nowrap">Sort:</label>
-            <Select value={sort} onValueChange={setSort}>
-              <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
-                <SelectValue placeholder="Sort by">{SORT_LABELS[sort] ?? sort}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="lastSeen">Last Seen</SelectItem>
-                <SelectItem value="name">Name</SelectItem>
-                <SelectItem value="bandwidth">Bandwidth</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={order} onValueChange={setOrder}>
-              <SelectTrigger className="w-[130px] bg-slate-800/50 border border-slate-700">
-                <SelectValue placeholder="Order">{ORDER_LABELS[order] ?? order}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="asc">
-                  <ChevronUp className="h-4 w-4 mr-2" /> Ascending
-                </SelectItem>
-                <SelectItem value="desc">
-                  <ChevronDown className="h-4 w-4 mr-2" /> Descending
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={sort} onValueChange={setSort}>
+            <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
+              <SelectValue placeholder="Sort by">{SORT_LABELS[sort] ?? sort}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="lastSeen">Last Seen</SelectItem>
+              <SelectItem value="name">Name</SelectItem>
+              <SelectItem value="bandwidth">Bandwidth</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={order} onValueChange={setOrder}>
+            <SelectTrigger className="w-[130px] bg-slate-800/50 border border-slate-700">
+              <SelectValue placeholder="Order">{ORDER_LABELS[order] ?? order}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="asc">
+                <ChevronUp className="h-4 w-4 mr-2" /> Ascending
+              </SelectItem>
+              <SelectItem value="desc">
+                <ChevronDown className="h-4 w-4 mr-2" /> Descending
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

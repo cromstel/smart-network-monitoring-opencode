@@ -112,6 +112,7 @@ export function DashboardShell({
   const [userOpen, setUserOpen] = useState(false)
   const [notOpen, setNotOpen] = useState(false)
   const [headerOpen, setHeaderOpen] = useState(false)
+  const [globalSearch, setGlobalSearch] = useState('')
 
   const { notifications: bellNotifications, unreadCount } = useBellNotifications()
 
@@ -200,6 +201,15 @@ export function DashboardShell({
       </aside>
       <div className="min-w-0 flex-1 p-4 md:p-6">
         <div className="flex items-center justify-between gap-4">
+          <div className="relative flex-1 max-w-xl">
+            <input
+              type="text"
+              value={globalSearch}
+              onChange={e => setGlobalSearch(e.target.value)}
+              placeholder="Search devices, alerts, network..."
+              className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
           <div className="flex items-center gap-3 flex-1 justify-end">
             <div className="relative">
               <button
