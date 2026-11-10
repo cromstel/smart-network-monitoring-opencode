@@ -163,7 +163,7 @@ export default function DevicesPage() {
               <SelectValue placeholder="Status" />
               <ChevronDown className="h-4 w-4 text-slate-400 pointer-events-none" />
             </SelectTrigger>
-            <SelectContent sideOffset={4} className="bg-slate-900 border border-slate-700 rounded-md p-1 shadow-lg min-w-[150px]">
+            <SelectContent className="bg-slate-900 border border-slate-700 rounded-md p-1 shadow-lg min-w-[150px]">
               <SelectItem value="">All statuses</SelectItem>
               <SelectItem value="online">Online</SelectItem>
               <SelectItem value="offline">Offline</SelectItem>
@@ -175,7 +175,7 @@ export default function DevicesPage() {
               <SelectValue placeholder="Type" />
               <ChevronDown className="h-4 w-4 text-slate-400 pointer-events-none" />
             </SelectTrigger>
-            <SelectContent sideOffset={4} className="bg-slate-900 border border-slate-700 rounded-md p-1 shadow-lg min-w-[150px] max-h-60 overflow-auto">
+            <SelectContent className="bg-slate-900 border border-slate-700 rounded-md p-1 shadow-lg min-w-[150px] max-h-60 overflow-auto">
               <SelectItem value="">All types</SelectItem>
               {KNOWN_DEVICE_TYPES.map((t) => (
                 <SelectItem key={t} value={t}>
@@ -189,7 +189,7 @@ export default function DevicesPage() {
               <SelectValue placeholder="Category" />
               <ChevronDown className="h-4 w-4 text-slate-400 pointer-events-none" />
             </SelectTrigger>
-            <SelectContent sideOffset={4} className="bg-slate-900 border border-slate-700 rounded-md p-1 shadow-lg min-w-[150px] max-h-60 overflow-auto">
+            <SelectContent className="bg-slate-900 border border-slate-700 rounded-md p-1 shadow-lg min-w-[150px] max-h-60 overflow-auto">
               <SelectItem value="">All categories</SelectItem>
               {categories.map((c) => (
                 <SelectItem key={c} value={c}>
@@ -205,7 +205,7 @@ export default function DevicesPage() {
               <SelectValue placeholder="Sort by">{SORT_LABELS[sort] ?? sort}</SelectValue>
               <ChevronDown className="h-4 w-4 text-slate-400 pointer-events-none" />
             </SelectTrigger>
-            <SelectContent sideOffset={4} className="bg-slate-900 border border-slate-700 rounded-md p-1 shadow-lg min-w-[150px]">
+            <SelectContent className="bg-slate-900 border border-slate-700 rounded-md p-1 shadow-lg min-w-[150px]">
               <SelectItem value="lastSeen">Last Seen</SelectItem>
               <SelectItem value="name">Name</SelectItem>
               <SelectItem value="bandwidth">Bandwidth</SelectItem>
@@ -216,7 +216,7 @@ export default function DevicesPage() {
               <SelectValue placeholder="Order">{ORDER_LABELS[order] ?? order}</SelectValue>
               <ChevronDown className="h-4 w-4 text-slate-400 pointer-events-none" />
             </SelectTrigger>
-            <SelectContent sideOffset={4} className="bg-slate-900 border border-slate-700 rounded-md p-1 shadow-lg min-w-[130px]">
+            <SelectContent className="bg-slate-900 border border-slate-700 rounded-md p-1 shadow-lg min-w-[130px]">
               <SelectItem value="asc">
                 <ChevronUp className="h-4 w-4 mr-2" /> Ascending
               </SelectItem>
