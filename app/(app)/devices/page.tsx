@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDevices } from '@/lib/hooks/useDevices'
 import { DeviceTable } from '@/components/DeviceTable'
-import { Download, Loader2 } from 'lucide-react'
+import { Download, Loader2, ChevronDown } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@radix-ui/react-select'
-import { ChevronUp, ChevronDown } from 'lucide-react'
+import { ChevronUp } from 'lucide-react'
 import type { DeviceDTO } from '@/lib/api/serialisers'
 import { KNOWN_DEVICE_TYPES } from '@/lib/types/device'
 
@@ -159,8 +159,9 @@ export default function DevicesPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <label className="text-xs font-medium text-slate-400 whitespace-nowrap">Filters:</label>
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
+            <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700 flex items-center justify-between">
               <SelectValue placeholder="Status" />
+              <ChevronDown className="h-4 w-4 text-slate-400 pointer-events-none" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">All statuses</SelectItem>
@@ -170,8 +171,9 @@ export default function DevicesPage() {
             </SelectContent>
           </Select>
           <Select value={type} onValueChange={setType}>
-            <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
+            <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700 flex items-center justify-between">
               <SelectValue placeholder="Type" />
+              <ChevronDown className="h-4 w-4 text-slate-400 pointer-events-none" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">All types</SelectItem>
@@ -183,8 +185,9 @@ export default function DevicesPage() {
             </SelectContent>
           </Select>
           <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
+            <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700 flex items-center justify-between">
               <SelectValue placeholder="Category" />
+              <ChevronDown className="h-4 w-4 text-slate-400 pointer-events-none" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">All categories</SelectItem>
@@ -198,8 +201,9 @@ export default function DevicesPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Select value={sort} onValueChange={setSort}>
-            <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700">
+            <SelectTrigger className="w-[150px] bg-slate-800/50 border border-slate-700 flex items-center justify-between">
               <SelectValue placeholder="Sort by">{SORT_LABELS[sort] ?? sort}</SelectValue>
+              <ChevronDown className="h-4 w-4 text-slate-400 pointer-events-none" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="lastSeen">Last Seen</SelectItem>
@@ -208,8 +212,9 @@ export default function DevicesPage() {
             </SelectContent>
           </Select>
           <Select value={order} onValueChange={setOrder}>
-            <SelectTrigger className="w-[130px] bg-slate-800/50 border border-slate-700">
+            <SelectTrigger className="w-[130px] bg-slate-800/50 border border-slate-700 flex items-center justify-between">
               <SelectValue placeholder="Order">{ORDER_LABELS[order] ?? order}</SelectValue>
+              <ChevronDown className="h-4 w-4 text-slate-400 pointer-events-none" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="asc">
