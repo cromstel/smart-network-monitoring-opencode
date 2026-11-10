@@ -125,7 +125,7 @@ export function DashboardShell({
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <ThemeSync theme={theme} />
-      <aside className="flex shrink-0 flex-col border-b border-slate-200 dark:border-slate-800 p-4 md:w-56 md:border-b-0 md:border-r">
+      <aside className="flex shrink-0 flex-col border-b border-slate-200 dark:border-slate-800 p-4 md:w-56 md:border-b-0 md:border-r sticky top-0 h-screen md:h-[100vh] overflow-y-auto">
         <Link href="/" className="flex items-center gap-2 px-3 py-2">
           <img src="/logo.avif" alt="" className="h-9 w-9 rounded-md object-contain" aria-hidden />
           <span className="text-sm font-semibold text-slate-900 dark:text-slate-200">
