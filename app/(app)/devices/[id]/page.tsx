@@ -61,6 +61,15 @@ function formatDuration(seconds: number): string {
   return `${seconds}s`
 }
 
+interface DeviceNote {
+  id: string
+  deviceId: string
+  userId: string
+  note: string
+  createdAt: string
+  updatedAt: string
+}
+
 export default function DeviceDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -82,10 +91,80 @@ export default function DeviceDetailPage() {
     staleTime: 5 * 60 * 1000,
   })
 
+  // Notes state
+  const [notes, setNotes] = useState<DeviceNote[]>([])
+  const [newNote, setNewNote] = useState('')
+  const [addingNote, setAddingNote] = useState(false)
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [editNote, setEditNote] = useState('')
+  const [notesLoading, setNotesLoading] = useState(false)
+
   const { isEditing, formData, setFormData, handleChange, handleSubmit, openEditDialog, closeEditDialog, handleOpenChange } = useDeviceForm(device)
-  // Role only hides the affordance; the PATCH handler still re-checks the
-  // session (PRD F-62). VIEWERs cannot rename devices.
   const { permissions } = useCurrentUser()
+
+  async function loadNotes() {
+    setNotesLoading(true)
+    try {
+      const res = await fetch(`/api/devices/${deviceId}/notes`, { cache: 'no-store' })
+      if (!res.ok) throw new Error('Failed to load notes')
+      const body = await res.json()
+      setNotes(body.data || [])
+    } catch (err) {
+      console.error('Failed to load notes:', err)
+    } finally {
+      setNotesLoading(false)
+    }
+  }
+
+  async function createNote(input: { deviceId: string; note: string }) {
+    setAddingNote(true)
+    try {
+      const res = await fetch(`/api/devices/${deviceId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      if (!res.ok) throw new Error('Failed to create note')
+      const created = (await res.json()) as { data: DeviceNote }
+      setNotes((prev) => [created.data, ...prev])
+      setNewNote('')
+    } finally {
+      setAddingNote(false)
+    }
+  }
+
+  async function updateNote(id: string, note: string) {
+    try {
+      const res = await fetch(`/api/devices/${deviceId}/notes?id=${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note }),
+      })
+      if (!res.ok) throw new Error('Failed to update note')
+      const updated = (await res.json()) as { data: DeviceNote }
+      setNotes((prev) => prev.map((n) => (n.id === id ? updated.data : n)))
+      setEditingNoteId(null)
+      setEditNote('')
+    } catch (err) {
+      console.error('Failed to update note:', err)
+    }
+  }
+
+  async function deleteNote(id: string) {
+    try {
+      const res = await fetch(`/api/devices/${deviceId}/notes?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error('Failed to delete note')
+      setNotes((prev) => prev.filter((n) => n.id !== id))
+    } catch (err) {
+      console.error('Failed to delete note:', err)
+    }
+  }
+
+  useEffect(() => {
+    loadNotes()
+  }, [deviceId])
 
   if (deviceLoading) {
     return (
@@ -122,11 +201,6 @@ export default function DeviceDetailPage() {
     <section className="mx-auto max-w-7xl px-4 py-8">
       <header className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          {/* Same visible-label chain as the device table
-              (`deviceName || hostname`, then MAC): most discovered devices
-              have no `deviceName`, and showing the bare MAC here after the
-              list showed a hostname reads as the click landing on the wrong
-              device. The MAC and hostname remain below either way. */}
           <h1 className="text-3xl font-semibold tracking-tight">
             {device.deviceName || device.hostname || device.macAddress}
           </h1>
@@ -429,6 +503,84 @@ export default function DeviceDetailPage() {
                 </div>
               ))
             )}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-6">
+        <h2 className="text-lg font-medium mb-4 flex items-center gap-2">
+          <span className="text-blue-400">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.418-9a4.01 4.01 0 00-1.202 5.657L5.585 15.086a2 2 0 01-3.828 0l-2.829-2.829a2 2 0 010-2.828l8.486-8.485zM15 11l-3.286 3.286a2 2 0 01-2.828 0L6.95 13.828a2 2 0 010-2.828l8.486-8.485z" />
+            </svg>
+          </span>
+          Notes
+        </h2>
+        <div className="space-y-3">
+          {notes.length === 0 ? (
+            <p className="text-sm text-slate-500">No notes yet. Add a note to record information about this device.</p>
+          ) : (
+            <div className="space-y-2">
+              {notes.map((note) => (
+                <div key={note.id} className="flex items-start justify-between gap-3 py-3 rounded-lg border border-slate-800/50 bg-slate-800/30">
+                  <div className="flex-1">
+                    <p className="text-sm text-slate-200">{note.note}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-slate-500 font-medium">{note.createdAt}</span>
+                      <span className="text-xs text-slate-500 font-medium">by {note.userId}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingNoteId(note.id)
+                        setEditNote(note.note)
+                      }}
+                      className="text-xs text-slate-400 hover:text-blue-400 dark:hover:text-blue-300"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm('Are you sure you want to delete this note?')) {
+                          deleteNote(note.id)
+                        }
+                      }}
+                      className="text-xs text-slate-400 hover:text-red-400 dark:hover:text-red-300"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+            <h3 className="text-sm font-medium text-slate-300 mb-3">Add Note</h3>
+            <form onSubmit={(e) => {
+              e.preventDefault()
+              if (!newNote.trim()) return
+              createNote({ deviceId, note: newNote })
+            }}
+              className="flex gap-2"
+            >
+              <input
+                type="text"
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                placeholder="Add a note about this device..."
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <button
+                type="submit"
+                disabled={!newNote.trim() || addingNote}
+                className="px-3 py-2 text-xs font-medium rounded-lg border border-slate-700 bg-slate-800 text-slate-300 disabled:opacity-50 disabled:pointer-events-none hover:bg-slate-700 hover:text-slate-100"
+              >
+                {addingNote ? 'Adding...' : 'Add'}
+              </button>
+            </form>
           </div>
         </div>
       </div>

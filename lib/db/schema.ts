@@ -234,6 +234,28 @@ export interface VulnerabilityAlertsTable {
   created_at: string
 }
 
+export interface AuditLogsTable {
+  id: string
+  user_id: string
+  action: string
+  resource_type: string
+  resource_id: string | null
+  old_values: string | null
+  new_values: string | null
+  ip_address: string | null
+  user_agent: string | null
+  created_at: string
+}
+
+export interface DeviceNotesTable {
+  id: string
+  device_id: string
+  user_id: string
+  note: string
+  created_at: string
+  updated_at: string
+}
+
 export interface DB {
   device_categories: DeviceCategoriesTable
   devices: DevicesTable
@@ -253,4 +275,6 @@ export interface DB {
   device_blocks: DeviceBlocksTable
   email_providers: EmailProvidersTable
   vulnerability_alerts: VulnerabilityAlertsTable
+  audit_logs: AuditLogsTable
+  device_notes: DeviceNotesTable
 }

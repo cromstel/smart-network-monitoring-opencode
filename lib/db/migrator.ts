@@ -68,6 +68,7 @@ import * as Migration006NetworkMetrics from './migrations/006_network_metrics'
 import * as Migration007PaystackBilling from './migrations/007_paystack_billing'
 import * as Migration008DeviceBlocksEmailVuln from './migrations/008_device_blocks_email_vuln'
 import * as Migration009Ipv6DhcpPasswordReset from './migrations/009_ipv6_dhcp_password_reset'
+import * as Migration010AuditLogsDeviceNotes from './migrations/010_audit_logs_device_notes'
 
 export const migrations: Record<string, { up: (db: Kysely<DB>) => Promise<void>; down: (db: Kysely<DB>) => Promise<void> }> = {
   Migration001Devices,
@@ -79,6 +80,7 @@ export const migrations: Record<string, { up: (db: Kysely<DB>) => Promise<void>;
   Migration007PaystackBilling,
   Migration008DeviceBlocksEmailVuln,
   Migration009Ipv6DhcpPasswordReset,
+  Migration010AuditLogsDeviceNotes,
 }
 
 export function createMigrator(db: Kysely<DB>): Migrator {

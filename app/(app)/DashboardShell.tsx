@@ -31,6 +31,8 @@ const NAV = [
   { href: '/firewall', label: 'Firewall' },
   { href: '/alerts', label: 'Alerts' },
   { href: '/settings', label: 'Settings' },
+  { href: '/audit-logs', label: 'Audit Log' },
+  { href: '/users', label: 'Users' },
 ]
 
 /**

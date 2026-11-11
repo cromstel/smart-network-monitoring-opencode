@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { validateSession } from '@/lib/services/authService'
 import { logger } from '@/lib/utils/logger'
+import { checkRateLimit } from '@/lib/utils/rateLimit'
 
 /**
  * Content Security Policy, generated per request.
@@ -106,6 +107,32 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
   const nonce = generateNonce()
   const csp = contentSecurityPolicy(nonce)
+
+  // Rate limiting for API routes
+  if (path.startsWith('/api/')) {
+    let maxRequests = 100
+    let windowMs = 60 * 1000
+    if (path.startsWith('/api/auth/')) {
+      maxRequests = 5
+      windowMs = 60 * 1000
+    } else if (path.startsWith('/api/admin/')) {
+      maxRequests = 30
+      windowMs = 60 * 1000
+    }
+
+    const rateResult = await checkRateLimit(request, path, maxRequests, windowMs)
+    if (!rateResult.allowed) {
+      const response = NextResponse.json(
+        { error: 'RATE_LIMITED', message: 'Too many requests' },
+        { status: 429 }
+      )
+      response.headers.set('Content-Security-Policy', csp)
+      if (rateResult.retryAfter) {
+        response.headers.set('Retry-After', rateResult.retryAfter.toString())
+      }
+      return response
+    }
+  }
 
   // Every render below has to carry the nonce, so it goes on the *request*
   // headers (what the app reads through `headers()`) as well as the response.
