@@ -1,0 +1,30 @@
+# CODEOWNERS — automatic code review assignment
+#
+# GitHub uses this file to request reviews from the right people when a PR
+# touches files under these paths. Add team names as @org/team or individual
+# users as @username.
+
+# Global catch-all — everyone reviews everything by default
+* @cromstel
+
+# Security-sensitive paths — require security review
+**/.github/** @cromstel/security
+**/lib/api/auth.ts @cromstel/security
+**/lib/utils/crypto.ts @cromstel/security
+**/lib/utils/encryption.ts @cromstel/security
+**/lib/services/authService.ts @cromstel/security
+
+# Database layer — DBA review
+**/lib/db/** @cromstel/dba
+
+# Frontend/UI — frontend review
+**/app/(app)/** @cromstel/frontend
+**/components/** @cromstel/frontend
+
+# API routes — backend review
+**/app/api/** @cromstel/backend
+
+# Infrastructure/deployment — ops review
+**/.github/workflows/cd.yml @cromstel/ops
+**/docker-compose.yml @cromstel/ops
+**/Dockerfile @cromstel/ops
