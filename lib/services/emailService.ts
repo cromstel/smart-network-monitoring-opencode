@@ -1,3 +1,4 @@
+import sanitizeHtml from 'sanitize-html'
 import nodemailer from 'nodemailer'
 import { findProviders } from '@/lib/db/repositories/emailProviderRepository'
 
@@ -6,6 +7,63 @@ export interface EmailPayload {
   subject: string
   html: string
   text?: string
+}
+
+/**
+ * Safe HTML configuration for email content.
+ *
+ * Allows only presentational and structural markup. Strips:
+ *   - <script>, <iframe>, <object>, <embed>, <form>, <input>, <button>, etc.
+ *   - All event handlers (onclick, onload, onerror, ...)
+ *   - Dangerous URL schemes (javascript:, vbscript:, data:, file:)
+ */
+const SAFE_HTML = {
+  allowedTags: [
+    'a', 'b', 'blockquote', 'br', 'code', 'dd', 'del', 'dl', 'dt', 'em',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'ins', 'kbd',
+    'li', 'ol', 'p', 'pre', 'q', 's', 'span', 'strike', 'strong', 'sub',
+    'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'u', 'ul',
+  ],
+  allowedAttributes: {
+    a: ['href', 'title'],
+    img: ['src', 'alt', 'width', 'height'],
+    span: ['style'],
+    '*': [],
+  },
+  allowedSchemes: ['http', 'https', 'mailto'],
+  allowedSchemesByTag: {
+    img: ['http', 'https'],
+    a: ['http', 'https', 'mailto'],
+  },
+  // Strip disallowed tags entirely (don't keep their inner text)
+  nonTextualTags: ['script', 'style'],
+  // Transform disallowed attributes: remove them
+  transformTags: {
+    '*': (tagName: string, attribs: Record<string, string>) => {
+      // Remove all event handlers
+      for (const key of Object.keys(attribs)) {
+        if (/^on[A-Z]/.test(key)) {
+          delete attribs[key]
+        }
+      }
+      return { tagName, attribs }
+    },
+  },
+}
+
+/**
+ * Strips all HTML tags from a string, applied repeatedly until no more
+ * changes occur. This catches nested tags, unclosed tags like `<script`,
+ * and double-escaped markup that a single regex pass misses.
+ */
+function stripHtml(html: string): string {
+  let previous: string
+  let current = html
+  do {
+    previous = current
+    current = current.replace(/<[^>]*>/g, '')
+  } while (current !== previous)
+  return current.trim()
 }
 
 export async function sendEmail(payload: EmailPayload) {
@@ -23,14 +81,17 @@ export async function sendEmail(payload: EmailPayload) {
     },
   })
 
+  // Sanitize the HTML body so no executable content reaches the inbox.
+  const safeHtml = sanitizeHtml(payload.html, SAFE_HTML)
+
   const info = await (async () => {
     try {
       return await transporter.sendMail({
         from: `"Network Monitor" <${defaultProvider.smtpUser || 'admin@network.local'}>`,
         to: payload.to,
         subject: payload.subject,
-        text: payload.text ?? payload.html.replace(/<[^>]*>/g, ''),
-        html: payload.html,
+        text: payload.text ?? stripHtml(payload.html),
+        html: safeHtml,
       })
     } catch {
       await new Promise((r) => setTimeout(r, 2000))
@@ -38,8 +99,8 @@ export async function sendEmail(payload: EmailPayload) {
         from: `"Network Monitor" <${defaultProvider.smtpUser || 'admin@network.local'}>`,
         to: payload.to,
         subject: payload.subject,
-        text: payload.text ?? payload.html.replace(/<[^>]*>/g, ''),
-        html: payload.html,
+        text: payload.text ?? stripHtml(payload.html),
+        html: safeHtml,
       })
     }
   })()
