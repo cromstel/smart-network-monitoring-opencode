@@ -107,5 +107,11 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
           eval "$(ssh-agent -s)"
           printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' | ssh-add -
+          # `printf %q` quotes each value for the *remote* shell. The values are
+          # already env-passed, but they are inserted into remote command text,
+          # and an apostrophe in DEPLOY_DIR would otherwise close the quoting and
+          # break (or rewrite) the command before Compose runs.
+          deploy_dir=$(printf '%q' "$DEPLOY_DIR")
+          deploy_image=$(printf '%q' "$DEPLOY_IMAGE")
           ssh "$DEPLOY_USER@$DEPLOY_HOST" \
-            "cd '$DEPLOY_DIR' && printf 'DEPLOY_IMAGE=%s\n' '$DEPLOY_IMAGE' > .env.deploy && docker compose pull && docker compose up -d --remove-orphans && docker compose ps"
+            "cd $deploy_dir && printf 'DEPLOY_IMAGE=%s\n' $deploy_image > .env.deploy && docker compose pull && docker compose up -d --remove-orphans && docker compose ps"
