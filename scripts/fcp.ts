@@ -38,8 +38,10 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
+import { sql } from 'kysely'
 import { e2eAccount } from '../lib/config/e2eAccounts'
 import { fcpPort, loopbackOrigin } from '../lib/config/ports'
+import { db } from '../lib/db/client'
 
 const HOUR = 3_600_000
 
@@ -103,30 +105,46 @@ async function waitForHealth(url: string, timeoutMs: number): Promise<void> {
 }
 
 /**
- * Waits until the schema exists.
+ * Waits until every migration has landed.
  *
- * The app applies migrations on boot without awaiting them —
- * `instrumentation.node.ts` calls `runMigrations()` fire-and-forget — so
- * `/api/health` can answer before the first table exists. On an established
- * database that window is invisible; on a fresh one every query below fails
- * until migrations land, which is exactly what produced
- * `setup failed: 500` the first time this harness ran against a new schema.
+ * `instrumentation.node.ts` starts `runMigrations()` without awaiting it, so
+ * every HTTP surface can answer before the schema is complete. Neither existing
+ * probe is a readiness signal:
  *
- * `GET /api/setup` reads the `users` table, so it is a direct probe: a 500
- * means "no schema yet", anything else means the tables are there.
+ *   - `/api/health` runs `select 1` and swallows errors from its other queries,
+ *     so it returns 200 against an empty database.
+ *   - `/api/setup` reads `users`, which migration 001 creates. Returning 200
+ *     from it only proves the *first* migration ran, while the login below
+ *     needs `sessions` (004), and the schema is not finished until 010.
+ *
+ * So ask the database which tables exist. Requiring a table from the first
+ * migration and one from the newest proves the whole chain ran, because the
+ * migrator applies them in order. This also avoids the readiness loop hanging on
+ * a stalled HTTP request: a database query honours the pool's connect timeout.
  */
-async function waitForSchema(url: string, timeoutMs: number): Promise<void> {
+async function waitForSchema(timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs
+  const required = ['users', 'sessions', 'device_notes']
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(url)
-      if (res.status !== 500) return
+      const result = await sql<{ n: number | string }>`
+        select count(*) as n from information_schema.tables
+        where table_schema = database()
+          and table_name in (${sql.join(
+            required.map((name) => sql`${name}`),
+            sql`, `
+          )})
+      `.execute(db)
+      if (Number(result.rows[0]?.n ?? 0) === required.length) return
     } catch {
-      /* not up yet */
+      /* database or schema not ready yet */
     }
     await new Promise((r) => setTimeout(r, 500))
   }
-  throw new Error(`schema was still missing at ${url} after ${timeoutMs}ms`)
+  throw new Error(
+    `schema did not reach migration 010 within ${timeoutMs}ms on ${DB_LABEL} ` +
+      `(missing: ${required.join(', ')})`
+  )
 }
 
 /**
@@ -285,7 +303,6 @@ function buildReport(samples: Sample[]): string {
  */
 async function seedAdminDirectly(): Promise<boolean> {
   try {
-    const { db } = await import('../lib/db/client')
     const { hashPassword } = await import('../lib/utils/crypto')
     const { randomUUID } = await import('node:crypto')
 
@@ -342,7 +359,7 @@ async function main(): Promise<void> {
   let browser: Browser | undefined
   try {
     await waitForHealth(`${BASE}/api/health`, 120_000)
-    await waitForSchema(`${BASE}/api/setup`, 120_000)
+    await waitForSchema(120_000)
 
     // The database must be seeded for the login to succeed. A 409 means a user
     // already exists, which is fine *only* if it is one we can log in as — and
