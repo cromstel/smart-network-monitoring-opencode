@@ -27,7 +27,14 @@ const SAFE_HTML = {
   allowedAttributes: {
     a: ['href', 'title'],
     img: ['src', 'alt', 'width', 'height'],
-    span: ['style'],
+    // No `style` anywhere, deliberately. sanitize-html filters attribute
+    // *names*, so an allowed `style` arrives with its value untouched:
+    // `allowedSchemes` only sees URL-bearing attributes like href/src, never
+    // `url(...)` inside CSS. `span` carried `style` until a review pointed out
+    // that `background-image:url(javascript:...)` therefore survived. Nothing
+    // in the codebase renders inline styles in email — `buildEmailHtml` uses
+    // bare h2/p/strong, and the one `style=` in `authService` sits on a `<p>`,
+    // which this config already strips — so the attribute bought nothing.
     '*': [],
   },
   allowedSchemes: ['http', 'https', 'mailto'],
@@ -35,8 +42,11 @@ const SAFE_HTML = {
     img: ['http', 'https'],
     a: ['http', 'https', 'mailto'],
   },
-  // Strip disallowed tags entirely (don't keep their inner text)
-  nonTextualTags: ['script', 'style'],
+  // Tags whose *contents* are discarded along with the tag. The option is
+  // `nonTextTags`; the previous spelling, `nonTextualTags`, is not a
+  // sanitize-html option at all, so it was silently ignored and a
+  // `<script>alert(1)</script>` body survived as visible text.
+  nonTextTags: ['script', 'style'],
   // Transform disallowed attributes: remove them
   transformTags: {
     '*': (tagName: string, attribs: Record<string, string>) => {
