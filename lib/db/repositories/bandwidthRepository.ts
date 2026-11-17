@@ -73,20 +73,14 @@ export async function fetchStatsForDevices(
   const stats = new Map<string, DeviceNetworkStats>()
   if (deviceIds.length === 0) return stats
 
-  const latest = db
-    .selectFrom('bandwidth_metrics')
-    .select(['device_id', db.fn.max<string>('timestamp').as('ts')])
-    .where('device_id', 'in', deviceIds)
-    .groupBy('device_id')
-    .as('latest')
-
-  const rows = await db
+  // One ranked pass instead of a MAX() derived table joined back to the same
+  // table. Both return the single latest row per device, but the join planned
+  // badly on MariaDB: 1.4s versus 4.3ms on MySQL for the same 100-device
+  // dataset, because MariaDB materialises the derived table and re-scans
+  // bandwidth_metrics to join against it. `row_number()` walks the
+  // (device_id, timestamp) index once, in order, and needs no join.
+  const ranked = db
     .selectFrom('bandwidth_metrics as bm')
-    .innerJoin(latest, (jb) =>
-      jb
-        .onRef('bm.device_id', '=', 'latest.device_id')
-        .onRef('bm.timestamp', '=', 'latest.ts')
-    )
     .select([
       'bm.device_id',
       'bm.timestamp',
@@ -94,7 +88,22 @@ export async function fetchStatsForDevices(
       'bm.download_speed',
       'bm.upload_total',
       'bm.download_total',
+      sql<number>`row_number() over (partition by bm.device_id order by bm.timestamp desc)`.as('rn'),
     ])
+    .where('bm.device_id', 'in', deviceIds)
+    .as('ranked')
+
+  const rows = await db
+    .selectFrom(ranked)
+    .select([
+      'device_id',
+      'timestamp',
+      'upload_speed',
+      'download_speed',
+      'upload_total',
+      'download_total',
+    ])
+    .where('rn', '=', 1)
     .execute()
 
   for (const row of rows) {
