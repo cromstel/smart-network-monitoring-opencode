@@ -103,6 +103,33 @@ async function waitForHealth(url: string, timeoutMs: number): Promise<void> {
 }
 
 /**
+ * Waits until the schema exists.
+ *
+ * The app applies migrations on boot without awaiting them —
+ * `instrumentation.node.ts` calls `runMigrations()` fire-and-forget — so
+ * `/api/health` can answer before the first table exists. On an established
+ * database that window is invisible; on a fresh one every query below fails
+ * until migrations land, which is exactly what produced
+ * `setup failed: 500` the first time this harness ran against a new schema.
+ *
+ * `GET /api/setup` reads the `users` table, so it is a direct probe: a 500
+ * means "no schema yet", anything else means the tables are there.
+ */
+async function waitForSchema(url: string, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url)
+      if (res.status !== 500) return
+    } catch {
+      /* not up yet */
+    }
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  throw new Error(`schema was still missing at ${url} after ${timeoutMs}ms`)
+}
+
+/**
  * Reads the paint timing Chromium recorded for the page.
  *
  * `first-contentful-paint` is absent when the page painted nothing, which is a
@@ -315,6 +342,7 @@ async function main(): Promise<void> {
   let browser: Browser | undefined
   try {
     await waitForHealth(`${BASE}/api/health`, 120_000)
+    await waitForSchema(`${BASE}/api/setup`, 120_000)
 
     // The database must be seeded for the login to succeed. A 409 means a user
     // already exists, which is fine *only* if it is one we can log in as — and
