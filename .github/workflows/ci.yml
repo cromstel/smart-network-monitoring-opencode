@@ -65,10 +65,13 @@ jobs:
   # therefore has nothing to run when the tree carries no test files, and the
   # test jobs skip rather than fail on "no tests found".
   #
-  # The file check cannot sit in a job-level `if:`: `hashFiles` is a step-scope
-  # function, and a job-level use of it made the entire workflow file invalid —
-  # every run failed in 0s before a single job was created. The check therefore
-  # runs in a step and the test jobs gate on its output.
+  # The check is `git ls-files`, not `hashFiles`. `hashFiles` is step-scope
+  # only, so a job-level use of it invalidated the entire workflow file (every
+  # run failed in 0s before a job was created). It also reads the working tree,
+  # dependency sources included — node_modules holds 219 `*.test.ts` files.
+  # This job only escapes that because it runs before any install; that is
+  # luck, not correctness. `git ls-files` sees tracked files only, which is
+  # exactly the set the runner can execute.
   detect-tests:
     name: Detect test sources
     runs-on: ubuntu-latest
@@ -79,7 +82,14 @@ jobs:
 
       - name: Check for test sources
         id: check
-        run: echo "has-tests=${{ hashFiles('**/*.test.ts') != '' }}" >> "$GITHUB_OUTPUT"
+        # Mirrors jest.config.js `testMatch`: lib/**/__tests__/**/*.test.ts and
+        # **/*.test.tsx.
+        run: |
+          if git ls-files | grep -Eq '^lib/(.*/)?__tests__/.*\.test\.ts$|\.test\.tsx$'; then
+            echo "has-tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-tests=false" >> "$GITHUB_OUTPUT"
+          fi
 
   unit:
     name: Unit tests (MySQL / MariaDB)
@@ -428,11 +438,25 @@ jobs:
           path: doc/FCP.md
           retention-days: 7
 
+      - name: Check for Playwright specs
+        id: specs
+        # Same reasoning as `detect-tests`, and this one was actively wrong:
+        # `hashFiles('**/*.spec.ts')` reads the working tree, the step runs
+        # after `npm install`, and node_modules ships five such files — so the
+        # guard was permanently true. The step it guards is meant to be skipped
+        # when no specs are tracked, and it ran and failed instead.
+        run: |
+          if git ls-files | grep -Eq '\.spec\.tsx?$'; then
+            echo "has-specs=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-specs=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run E2E
-        # No specs in the tree means there is nothing to run — the step is
+        # No specs in the tree means there is nothing to run - the step is
         # skipped rather than failed, because the absence of the sources is the
         # intended state, not a regression.
-        if: ${{ hashFiles('**/*.spec.ts') != '' }}
+        if: ${{ steps.specs.outputs.has-specs == 'true' }}
         run: npm run test:e2e
         env:
           CI: 'true'
@@ -440,7 +464,7 @@ jobs:
           ENCRYPTION_KEY: e2e-encryption-key-not-for-production-0000000000
 
       - name: Upload Playwright report
-        if: always() && hashFiles('**/*.spec.ts') != ''
+        if: always() && steps.specs.outputs.has-specs == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
