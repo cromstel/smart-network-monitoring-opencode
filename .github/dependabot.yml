@@ -34,10 +34,17 @@ updates:
     # play here, so breaking changes should be reviewed before merge.
     version-update-strategy: "auto"
     ignore:
-      # deepmerge 4.3.1 (latest) still carries GHSA-gcqx-w48m-w2h4. No fix
-      # release exists yet. Re-evaluate when deepmerge publishes a patch.
+      # deepmerge 4.3.1 is the newest published release and still carries a
+      # prototype-pollution advisory. It reaches this project only through
+      # jest's devDependencies: it is in no shipped artifact and no runtime
+      # path, so the exposure is a developer machine's test process.
+      #
+      # No `update-types` filter is applied on purpose. A fixed release does
+      # not exist, so *every* attempt fails identically — including the
+      # security update, which is the "Dependabot can't find a published or
+      # compatible non-vulnerable version" failure that keeps re-running.
+      # Remove this entry if deepmerge ever publishes a fix.
       - dependency-name: "deepmerge"
-        update-types: ["version-update:semver-patch", "version-update:semver-minor"]
 
   # ---------------------------------------------------------------------------
   # GitHub Actions workflows
