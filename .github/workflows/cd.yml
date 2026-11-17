@@ -1,15 +1,21 @@
 # Continuous Deployment — build and deploy on merge to main
 #
-# Runs after CI passes. Builds the Docker image, pushes it to GitHub
-# Container Registry, and triggers deployment on the target host.
+# Builds the Docker image, pushes it to GitHub Container Registry, and deploys
+# to the target host. `main` is protected, so a commit only reaches it after CI
+# passed on its pull request.
 #
-# Required repository secrets:
+# GHCR authentication uses the workflow's own GITHUB_TOKEN — no PAT secret is
+# needed; the `packages: write` permission below is what authorises the push.
+#
+# Deployment is off unless the repository variable DEPLOY_ENABLED is set to
+# 'true'. Without that gate every push to main fails at the SSH step, because
+# the build succeeds but no deployment target is configured.
+#
+# Required repository secrets (only when DEPLOY_ENABLED=true):
 #   DEPLOY_HOST     — SSH host of the deployment target
 #   DEPLOY_USER     — SSH user for the deployment target
 #   DEPLOY_SSH_KEY  — SSH private key (no passphrase)
 #   DEPLOY_DIR      — Directory on target holding docker-compose.yml + .env
-#   REGISTRY_USER   — GHCR username (typically the GitHub actor)
-#   REGISTRY_TOKEN  — GitHub PAT with `write:packages` (or GITHUB_TOKEN)
 
 name: CD
 
@@ -22,6 +28,11 @@ concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  # Required to push the image to ghcr.io. The default token scope is read-only.
+  packages: write
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -31,7 +42,11 @@ jobs:
     name: Build and push Docker image
     runs-on: ubuntu-latest
     outputs:
-      image: ${{ steps.build.outputs.image }}
+      # docker/build-push-action exposes `imageid`, `digest` and `metadata` —
+      # never `image`. The deploy needs the exact tag that was pushed, and the
+      # metadata step below pins it to the full commit SHA, so it is derived
+      # here rather than read from a nonexistent output.
+      image: ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
 
@@ -39,8 +54,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ env.REGISTRY_USER }}
-          password: ${{ env.REGISTRY_TOKEN }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
@@ -48,7 +63,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha
+            type=sha,format=long
             type=ref,event=branch
             type=ref,event=pr
 
@@ -70,22 +85,27 @@ jobs:
     name: Deploy to target host
     runs-on: ubuntu-latest
     needs: build-and-push
-    if: ${{ always() && needs.build-and-push.result == 'success' }}
+    if: ${{ needs.build-and-push.result == 'success' && vars.DEPLOY_ENABLED == 'true' }}
     steps:
       - name: Checkout compose file
         uses: actions/checkout@v4
 
       - name: Deploy via SSH
         env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_DIR: ${{ secrets.DEPLOY_DIR }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_IMAGE: ${{ needs.build-and-push.outputs.image }}
         run: |
-          set -e
+          set -euo pipefail
+          # Secrets are passed through the environment, never interpolated into
+          # this script: a `$` or a quote in a secret would otherwise be evaluated
+          # by the shell that runs the deploy.
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 600 ~/.ssh/known_hosts
           eval "$(ssh-agent -s)"
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" | tr -d '\r' | ssh-add -
-
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "cd ${{ secrets.DEPLOY_DIR }} && \
-             echo 'DEPLOY_IMAGE=${{ env.DEPLOY_IMAGE }}' > .env.deploy && \
-             docker compose pull && \
-             docker compose up -d --remove-orphans && \
-             docker compose ps"
+          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' | ssh-add -
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '$DEPLOY_DIR' && printf 'DEPLOY_IMAGE=%s\n' '$DEPLOY_IMAGE' > .env.deploy && docker compose pull && docker compose up -d --remove-orphans && docker compose ps"

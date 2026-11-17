@@ -48,17 +48,44 @@ jobs:
           DB_CLIENT: mysql
           # Production boot requires 32+ character secrets; the env block above
           # supplies them so the build exercises the real validation path.
+          #
+          # The connection identity is needed here even though the build never
+          # connects: `lib/db/client.ts` builds its pool at module scope, and
+          # `next build` imports every route while collecting page data, so the
+          # production guard executes. These are placeholders — mysql2 pools are
+          # lazy, so no socket is opened.
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_NAME: home_monitor_build
+          DB_USER: ci-build
+          DB_PASSWORD: ci-build
+
+  # The test sources are deliberately untracked (see .gitignore): they are not
+  # part of the shipped product and must not live in the remote repository. CI
+  # therefore has nothing to run when the tree carries no test files, and the
+  # test jobs skip rather than fail on "no tests found".
+  #
+  # The file check cannot sit in a job-level `if:`: `hashFiles` is a step-scope
+  # function, and a job-level use of it made the entire workflow file invalid —
+  # every run failed in 0s before a single job was created. The check therefore
+  # runs in a step and the test jobs gate on its output.
+  detect-tests:
+    name: Detect test sources
+    runs-on: ubuntu-latest
+    outputs:
+      has-tests: ${{ steps.check.outputs.has-tests }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for test sources
+        id: check
+        run: echo "has-tests=${{ hashFiles('**/*.test.ts') != '' }}" >> "$GITHUB_OUTPUT"
 
   unit:
     name: Unit tests (MySQL / MariaDB)
     runs-on: ubuntu-latest
-    # The test sources are deliberately untracked (see .gitignore): they are
-    # not part of the shipped product and must not live in the remote
-    # repository. That means CI has nothing to run when the tree carries no
-    # test files, so the job skips itself instead of failing on "no tests
-    # found". The guard is a file check rather than a hard delete: if someone
-    # re-adds a suite, the job wakes up by itself.
-    if: ${{ hashFiles('**/*.test.ts') != '' }}
+    needs: detect-tests
+    if: needs.detect-tests.outputs.has-tests == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -90,9 +117,10 @@ jobs:
   database:
     name: Unit tests (${{ matrix.label }})
     runs-on: ubuntu-latest
+    needs: detect-tests
     # Same guard as the unit job above: no test sources in the tree means no
     # suite to run against either engine.
-    if: ${{ hashFiles('**/*.test.ts') != '' }}
+    if: needs.detect-tests.outputs.has-tests == 'true'
 
     # Both engines, neither optional. MariaDB 12.3 is what the local
     # development server runs; MySQL 8.4 is what the deployed container stack
@@ -199,54 +227,11 @@ jobs:
           RUN_MYSQL_TESTS: '1'
           SESSION_SECRET: ci-session-secret-not-for-production-use-0000
           ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
-  # SQLite performance job removed — matrix already covers MySQL/MariaDB below
-    # Performance (PRD §5) — SQLite removed; matrix below covers MySQL / MariaDB
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install
-        run: npm ci
-
-      - name: Build the performance dataset
-        # 100 devices, 30 days of history at 15-minute resolution — the load
-        # the PRD §5 targets are written against.
-        run: npm run perf:dataset
-        env:
-          DB_CLIENT: mysql
-          DB_NAME: home_monitor_perf
-          SESSION_SECRET: perf-session-secret-not-for-production-000000
-          ENCRYPTION_KEY: perf-encryption-key-not-for-production-00000000
-
-      # Exits non-zero if any p95 misses its target, so a regression in query
-      # cost blocks a merge instead of quietly eroding the numbers in the report.
-      - name: Measure against the PRD §5 targets
-        run: npm run perf
-        env:
-          DB_CLIENT: mysql
-          DB_NAME: home_monitor_perf
-          SESSION_SECRET: perf-session-secret-not-for-production-000000
-          ENCRYPTION_KEY: perf-encryption-key-not-for-production-00000000
-
-      - name: Upload the report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-           name: performance-report-mysql
-           path: doc/PERFORMANCE.md
-          retention-days: 7
-
-  # The server engines are a separate job rather than extra rows in the
-  # The SQL matrix runs against both MariaDB and MySQL in separate runners.
-  # matrix entry — `services.*` has no `if` key, and an entry with an empty
-  # image is rejected at workflow-validation time rather than skipped — so a
-  # single matrix across all three engines cannot be expressed. One job for the
-  # file-backed engine, one for the two servers, no conditional service.
+  # The server engines are a separate job rather than extra rows in the matrix:
+  # `services.*` has no `if` key, and an entry with an empty image is rejected at
+  # workflow-validation time rather than skipped, so a single matrix across every
+  # engine cannot be expressed. The SQL matrix runs against both MariaDB and
+  # MySQL in separate runners.
   performance-server:
     name: Performance (PRD §5) — ${{ matrix.label }}
     runs-on: ubuntu-latest
@@ -354,6 +339,28 @@ jobs:
   e2e:
     name: End-to-end (Playwright)
     runs-on: ubuntu-latest
+    services:
+      db:
+        image: mariadb:12.3
+        env:
+          # The FCP harness starts the app against this schema and relies on
+          # ENABLE_DB_MIGRATIONS_ON_BOOT to create the tables, so the database
+          # must exist before the container is ready.
+          MARIADB_ROOT_PASSWORD: fcp-root
+          MARIADB_DATABASE: home_monitor_fcp
+          MARIADB_USER: monitor
+          MARIADB_PASSWORD: fcp-monitor
+          MYSQL_ROOT_PASSWORD: fcp-root
+          MYSQL_DATABASE: home_monitor_fcp
+          MYSQL_USER: monitor
+          MYSQL_PASSWORD: fcp-monitor
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
     # The Playwright specs are untracked with the rest of the test sources, so
     # the spec run below is guarded. The job itself still runs: the FCP
     # measurement in it is a perf harness (scripts/fcp.ts), not a test file,
@@ -386,6 +393,13 @@ jobs:
       - name: Build
         run: npm run build
         env:
+          NODE_ENV: production
+          DB_CLIENT: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_NAME: home_monitor_fcp
+          DB_USER: monitor
+          DB_PASSWORD: fcp-monitor
           SESSION_SECRET: e2e-session-secret-not-for-production-000000
           ENCRYPTION_KEY: e2e-encryption-key-not-for-production-0000000000
 
@@ -398,7 +412,11 @@ jobs:
         run: npm run perf:fcp
         env:
           DB_CLIENT: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
           DB_NAME: home_monitor_fcp
+          DB_USER: monitor
+          DB_PASSWORD: fcp-monitor
           SESSION_SECRET: fcp-session-secret-not-for-production-000000
           ENCRYPTION_KEY: fcp-encryption-key-not-for-production-00000000
 
