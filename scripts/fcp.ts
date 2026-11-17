@@ -105,6 +105,30 @@ async function waitForHealth(url: string, timeoutMs: number): Promise<void> {
 }
 
 /**
+ * One readiness attempt, bounded in time.
+ *
+ * The deadline in `waitForSchema` cannot be honoured if a single query never
+ * settles — the loop is stuck inside the `await` and never re-checks the clock.
+ * Racing the query against a timer keeps each attempt short, so the deadline
+ * always wins. The abandoned query is harmless: the pool is destroyed on exit.
+ */
+async function schemaPresent(required: string[], waitMs: number): Promise<boolean> {
+  const probe = sql<{ n: number | string }>`
+    select count(*) as n from information_schema.tables
+    where table_schema = database()
+      and table_name in (${sql.join(
+        required.map((name) => sql`${name}`),
+        sql`, `
+      )})
+  `
+    .execute(db)
+    .then((result) => Number(result.rows[0]?.n ?? 0) === required.length)
+
+  const expiry = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), waitMs))
+  return Promise.race([probe, expiry])
+}
+
+/**
  * Waits until every migration has landed.
  *
  * `instrumentation.node.ts` starts `runMigrations()` without awaiting it, so
@@ -118,24 +142,16 @@ async function waitForHealth(url: string, timeoutMs: number): Promise<void> {
  *     needs `sessions` (004), and the schema is not finished until 010.
  *
  * So ask the database which tables exist. Requiring a table from the first
- * migration and one from the newest proves the whole chain ran, because the
- * migrator applies them in order. This also avoids the readiness loop hanging on
- * a stalled HTTP request: a database query honours the pool's connect timeout.
+ * migration, one the login needs and one from the newest proves the whole chain
+ * ran, because the migrator applies them in order.
  */
 async function waitForSchema(timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs
   const required = ['users', 'sessions', 'device_notes']
   while (Date.now() < deadline) {
+    const remaining = deadline - Date.now()
     try {
-      const result = await sql<{ n: number | string }>`
-        select count(*) as n from information_schema.tables
-        where table_schema = database()
-          and table_name in (${sql.join(
-            required.map((name) => sql`${name}`),
-            sql`, `
-          )})
-      `.execute(db)
-      if (Number(result.rows[0]?.n ?? 0) === required.length) return
+      if (await schemaPresent(required, Math.min(remaining, 5_000))) return
     } catch {
       /* database or schema not ready yet */
     }
@@ -442,6 +458,13 @@ async function main(): Promise<void> {
   } finally {
     await browser?.close()
     child.kill()
+    // The readiness probe uses the shared pool, and mysql2 keeps its sockets
+    // (and keep-alive timers) referenced. Without this the harness does all its
+    // work, prints the verdict and then never exits: the event loop still has an
+    // open handle. That is exactly how the e2e job hung for 30 minutes.
+    // `seedAdminDirectly` reaches the same pool on the 409 path, so this closes
+    // it for both.
+    await db.destroy()
   }
 }
 
