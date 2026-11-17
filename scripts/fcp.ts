@@ -262,9 +262,10 @@ function buildReport(samples: Sample[]): string {
   lines.push('')
   lines.push('| Load | FCP | TTFB (responseEnd) | Load event |')
   lines.push('|---|---|---|---|')
-  for (const s of samples) {
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i]
     lines.push(
-      `| ${s.label} ${samples.filter((x) => x === s).indexOf(s) + 1} | ${formatMs(s.fcpMs)} | ${formatMs(
+      `| ${s.label} ${i + 1} | ${formatMs(s.fcpMs)} | ${formatMs(
         s.responseEndMs
       )} | ${formatMs(s.loadMs)} |`
     )
