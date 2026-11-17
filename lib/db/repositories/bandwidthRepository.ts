@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { db } from '../client'
-import { sql } from 'kysely'
+import { sql, type Selectable } from 'kysely'
 import type { BandwidthMetric, DeviceNetworkStats } from '@/lib/types'
+import type { BandwidthMetricsTable } from '../schema'
 import { rowToBandwidthMetric } from './mappers'
 
 export interface BandwidthSampleInput {
@@ -65,7 +66,10 @@ export async function listForDeviceBetween(
 
 /**
  * Latest network stats per device, one query for the whole batch.
- * The max(timestamp) subquery keeps the join to one row per device.
+ *
+ * The shape matters more than it looks. This runs on every dashboard render and
+ * on every SSE-triggered refetch, so it is the query most likely to make the UI
+ * feel slow.
  */
 export async function fetchStatsForDevices(
   deviceIds: string[]
@@ -73,38 +77,38 @@ export async function fetchStatsForDevices(
   const stats = new Map<string, DeviceNetworkStats>()
   if (deviceIds.length === 0) return stats
 
-  // One ranked pass instead of a MAX() derived table joined back to the same
-  // table. Both return the single latest row per device, but the join planned
-  // badly on MariaDB: 1.4s versus 4.3ms on MySQL for the same 100-device
-  // dataset, because MariaDB materialises the derived table and re-scans
-  // bandwidth_metrics to join against it. `row_number()` walks the
-  // (device_id, timestamp) index once, in order, and needs no join.
-  const ranked = db
-    .selectFrom('bandwidth_metrics as bm')
-    .select([
-      'bm.device_id',
-      'bm.timestamp',
-      'bm.upload_speed',
-      'bm.download_speed',
-      'bm.upload_total',
-      'bm.download_total',
-      sql<number>`row_number() over (partition by bm.device_id order by bm.timestamp desc)`.as('rn'),
-    ])
-    .where('bm.device_id', 'in', deviceIds)
-    .as('ranked')
+  // One `order by ... limit 1` branch per device, unioned into a single round
+  // trip. Each branch is a backward walk of `idx_bm_device_time`
+  // (device_id, timestamp) that stops after one row, so it costs one index seek
+  // per device and never touches the history it skips.
+  //
+  // Two other shapes were measured and rejected on the 100-device, 30-day
+  // dataset. A `max(timestamp)` derived table joined back to
+  // `bandwidth_metrics` took 4.3ms on MySQL but 1.40s on MariaDB, which
+  // materialises the derived table and re-scans the base table to join against
+  // it. `row_number() over (partition by device_id ...)` removes the join but
+  // ranks every row before discarding all but one: 1.72s MySQL, 1.54s MariaDB.
+  const latestPerDevice = deviceIds.map(
+    (id) => sql`
+      (select device_id, timestamp, upload_speed, download_speed,
+              upload_total, download_total
+         from bandwidth_metrics
+        where device_id = ${id}
+        order by timestamp desc
+        limit 1)`
+  )
 
-  const rows = await db
-    .selectFrom(ranked)
-    .select([
-      'device_id',
-      'timestamp',
-      'upload_speed',
-      'download_speed',
-      'upload_total',
-      'download_total',
-    ])
-    .where('rn', '=', 1)
-    .execute()
+  const { rows } = await sql<
+    Pick<
+      Selectable<BandwidthMetricsTable>,
+      | 'device_id'
+      | 'timestamp'
+      | 'upload_speed'
+      | 'download_speed'
+      | 'upload_total'
+      | 'download_total'
+    >
+  >`${sql.join(latestPerDevice, sql` union all `)}`.execute(db)
 
   for (const row of rows) {
     stats.set(row.device_id, {
