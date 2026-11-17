@@ -45,11 +45,16 @@ export async function up(db: Kysely<any>): Promise<void> {
       .addColumn('user_id', 'varchar(36)', (col: any) => col.notNull().references('users.id').onDelete('cascade'))
       .addColumn('action', 'varchar(100)', (col: any) => col.notNull())
       .addColumn('resource_type', 'varchar(50)', (col: any) => col.notNull())
-      .addColumn('resource_id', 'varchar(36)', (col: any) => col.nullable())
-      .addColumn('old_values', 'text', (col: any) => col.nullable())
-      .addColumn('new_values', 'text', (col: any) => col.nullable())
-      .addColumn('ip_address', 'varchar(45)', (col: any) => col.nullable())
-      .addColumn('user_agent', 'varchar(255)', (col: any) => col.nullable())
+      // No `.nullable()` here: Kysely has no such method (the stack trace was
+      // `col.nullable is not a function`), and a column is nullable unless
+      // `.notNull()` is called. The call made this migration fail on every
+      // fresh database, which is why it went unnoticed — local schemas had
+      // already created the table, so this branch was skipped.
+      .addColumn('resource_id', 'varchar(36)')
+      .addColumn('old_values', 'text')
+      .addColumn('new_values', 'text')
+      .addColumn('ip_address', 'varchar(45)')
+      .addColumn('user_agent', 'varchar(255)')
       .addColumn('created_at', 'varchar(64)', (col: any) => col.notNull())
       .execute()
   }
