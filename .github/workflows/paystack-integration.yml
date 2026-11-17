@@ -26,6 +26,11 @@ concurrency:
   group: paystack-integration-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege: the job reads the tree and uploads a coverage artefact, which
+# uses the runner's own token. No write scope on the repository is required.
+permissions:
+  contents: read
+
 env:
   # Deterministic, non-secret values. The config module requires 32+ character
   # secrets, so supplying them keeps the build on the real validation path.
@@ -33,6 +38,9 @@ env:
   # a secret would only be a liability. See the note on logging below.
   SESSION_SECRET: ci-session-secret-not-for-production-use-0000
   ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
+  # Required by the config schema; without it the build fails once the DB
+  # variables below are satisfied.
+  APP_NAME: CI Network Monitor
 
 jobs:
   paystack-billing:
@@ -61,6 +69,15 @@ jobs:
         env:
           NODE_ENV: production
           DB_CLIENT: mysql
+          # Needed at build time even though nothing connects: the DB client is
+          # constructed at module scope and Next imports every route while
+          # collecting page data. mysql2 pools are lazy, so these placeholders
+          # never open a socket.
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_NAME: home_monitor_build
+          DB_USER: ci-build
+          DB_PASSWORD: ci-build
 
       # The billing assertions live in the settings service suite alongside the
       # defaults round-trip, the partial-patch rules and per-user isolation, so
@@ -82,7 +99,7 @@ jobs:
           ENCRYPTION_KEY: ci-encryption-key-not-for-production-use-000000
 
       - name: Upload coverage
-        if: always()
+        if: always() && hashFiles('coverage/**') != ''
         uses: actions/upload-artifact@v4
         with:
           name: paystack-billing-coverage

@@ -23,6 +23,11 @@ concurrency:
   group: soak
   cancel-in-progress: false
 
+# Least privilege: the soak only reads the checked-out tree. Artefacts use the
+# runner's own token, so no write scope is needed.
+permissions:
+  contents: read
+
 jobs:
   # GitHub Actions caps a single job at 6 hours, hard, and cancels the runner
   # when it is reached. A 24-hour soak therefore cannot run as one job: the
@@ -51,6 +56,28 @@ jobs:
       matrix:
         segment: [1, 2, 3, 4]
 
+    services:
+      db:
+        image: mariadb:12.3
+        env:
+          # The container creates the schema before it reports ready; the
+          # migrator never issues CREATE DATABASE, so it must already exist.
+          MARIADB_ROOT_PASSWORD: soak-root
+          MARIADB_DATABASE: home_monitor_soak
+          MARIADB_USER: monitor
+          MARIADB_PASSWORD: soak-monitor
+          MYSQL_ROOT_PASSWORD: soak-root
+          MYSQL_DATABASE: home_monitor_soak
+          MYSQL_USER: monitor
+          MYSQL_PASSWORD: soak-monitor
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+
     steps:
       - uses: actions/checkout@v4
 
@@ -63,10 +90,16 @@ jobs:
         run: npm ci
 
       - name: Prepare the soak database
-        run: |
-          rm -f ./data/soak.db
-          DB_CLIENT=mysql DB_NAME=home_monitor_soak npm run db:migrate
+        # No `rm ./data/soak.db`: that was SQLite residue and the file no longer
+        # exists. The schema itself is created by the service container above.
+        run: npm run db:migrate
         env:
+          DB_CLIENT: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_NAME: home_monitor_soak
+          DB_USER: monitor
+          DB_PASSWORD: soak-monitor
           SESSION_SECRET: soak-session-secret-not-for-production-000000
           ENCRYPTION_KEY: soak-encryption-key-not-for-production-00000000
 
@@ -85,6 +118,12 @@ jobs:
           # So the four reports can be told apart, and so the report can state
           # that the process did not live for 24 hours.
           SOAK_SEGMENT: ${{ matrix.segment }}
+          DB_CLIENT: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_NAME: home_monitor_soak
+          DB_USER: monitor
+          DB_PASSWORD: soak-monitor
           SESSION_SECRET: soak-session-secret-not-for-production-000000
           ENCRYPTION_KEY: soak-encryption-key-not-for-production-00000000
 

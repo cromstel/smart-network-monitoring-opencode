@@ -38,8 +38,10 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
+import { sql } from 'kysely'
 import { e2eAccount } from '../lib/config/e2eAccounts'
 import { fcpPort, loopbackOrigin } from '../lib/config/ports'
+import { db } from '../lib/db/client'
 
 const HOUR = 3_600_000
 
@@ -100,6 +102,65 @@ async function waitForHealth(url: string, timeoutMs: number): Promise<void> {
     await new Promise((r) => setTimeout(r, 500))
   }
   throw new Error(`server did not become healthy at ${url} within ${timeoutMs}ms`)
+}
+
+/**
+ * One readiness attempt, bounded in time.
+ *
+ * The deadline in `waitForSchema` cannot be honoured if a single query never
+ * settles — the loop is stuck inside the `await` and never re-checks the clock.
+ * Racing the query against a timer keeps each attempt short, so the deadline
+ * always wins. The abandoned query is harmless: the pool is destroyed on exit.
+ */
+async function schemaPresent(required: string[], waitMs: number): Promise<boolean> {
+  const probe = sql<{ n: number | string }>`
+    select count(*) as n from information_schema.tables
+    where table_schema = database()
+      and table_name in (${sql.join(
+        required.map((name) => sql`${name}`),
+        sql`, `
+      )})
+  `
+    .execute(db)
+    .then((result) => Number(result.rows[0]?.n ?? 0) === required.length)
+
+  const expiry = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), waitMs))
+  return Promise.race([probe, expiry])
+}
+
+/**
+ * Waits until every migration has landed.
+ *
+ * `instrumentation.node.ts` starts `runMigrations()` without awaiting it, so
+ * every HTTP surface can answer before the schema is complete. Neither existing
+ * probe is a readiness signal:
+ *
+ *   - `/api/health` runs `select 1` and swallows errors from its other queries,
+ *     so it returns 200 against an empty database.
+ *   - `/api/setup` reads `users`, which migration 001 creates. Returning 200
+ *     from it only proves the *first* migration ran, while the login below
+ *     needs `sessions` (004), and the schema is not finished until 010.
+ *
+ * So ask the database which tables exist. Requiring a table from the first
+ * migration, one the login needs and one from the newest proves the whole chain
+ * ran, because the migrator applies them in order.
+ */
+async function waitForSchema(timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  const required = ['users', 'sessions', 'device_notes']
+  while (Date.now() < deadline) {
+    const remaining = deadline - Date.now()
+    try {
+      if (await schemaPresent(required, Math.min(remaining, 5_000))) return
+    } catch {
+      /* database or schema not ready yet */
+    }
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  throw new Error(
+    `schema did not reach migration 010 within ${timeoutMs}ms on ${DB_LABEL} ` +
+      `(missing: ${required.join(', ')})`
+  )
 }
 
 /**
@@ -258,7 +319,6 @@ function buildReport(samples: Sample[]): string {
  */
 async function seedAdminDirectly(): Promise<boolean> {
   try {
-    const { db } = await import('../lib/db/client')
     const { hashPassword } = await import('../lib/utils/crypto')
     const { randomUUID } = await import('node:crypto')
 
@@ -315,6 +375,7 @@ async function main(): Promise<void> {
   let browser: Browser | undefined
   try {
     await waitForHealth(`${BASE}/api/health`, 120_000)
+    await waitForSchema(120_000)
 
     // The database must be seeded for the login to succeed. A 409 means a user
     // already exists, which is fine *only* if it is one we can log in as — and
@@ -397,6 +458,13 @@ async function main(): Promise<void> {
   } finally {
     await browser?.close()
     child.kill()
+    // The readiness probe uses the shared pool, and mysql2 keeps its sockets
+    // (and keep-alive timers) referenced. Without this the harness does all its
+    // work, prints the verdict and then never exits: the event loop still has an
+    // open handle. That is exactly how the e2e job hung for 30 minutes.
+    // `seedAdminDirectly` reaches the same pool on the 409 path, so this closes
+    // it for both.
+    await db.destroy()
   }
 }
 
