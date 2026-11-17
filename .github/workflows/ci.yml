@@ -11,6 +11,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege: every step here reads the checked-out tree. Artefacts and
+# the dependency cache authenticate with the runner's own token, not this one,
+# so nothing needs a write scope. Without the block the token inherits the
+# repository default, which is broader than any job here requires.
+permissions:
+  contents: read
+
 env:
   # Deterministic, non-secret values for the build. Production secrets are
   # injected per-environment and are never present in CI logs.

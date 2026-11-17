@@ -26,6 +26,11 @@ concurrency:
   group: paystack-integration-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege: the job reads the tree and uploads a coverage artefact, which
+# uses the runner's own token. No write scope on the repository is required.
+permissions:
+  contents: read
+
 env:
   # Deterministic, non-secret values. The config module requires 32+ character
   # secrets, so supplying them keeps the build on the real validation path.

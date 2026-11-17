@@ -23,6 +23,11 @@ concurrency:
   group: soak
   cancel-in-progress: false
 
+# Least privilege: the soak only reads the checked-out tree. Artefacts use the
+# runner's own token, so no write scope is needed.
+permissions:
+  contents: read
+
 jobs:
   # GitHub Actions caps a single job at 6 hours, hard, and cancels the runner
   # when it is reached. A 24-hour soak therefore cannot run as one job: the
