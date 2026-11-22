@@ -34,8 +34,13 @@ COPY . .
 # All of these are set inline on the RUN rather than in an ENV instruction.
 # Docker's `SecretsUsedInArgOrEnv` check flags any ENV whose name looks like a
 # secret (*PASSWORD, *SECRET, *KEY) even when the value is a throwaway
-# placeholder, and an ENV is recorded in the layer's metadata; an inline
-# assignment is scoped to this one command and leaves no trace in the image.
+# placeholder, and an ENV is recorded in the image config where `docker inspect`
+# can read it. An inline assignment is scoped to this one command and is not
+# stored in the image config, which clears the advisory. It is NOT invisible —
+# `docker history --no-trunc` still shows the RUN command text — so a *real*
+# build-time secret must use a BuildKit secret mount (`RUN --mount=type=secret`)
+# instead of an inline value. Here every value is a literal placeholder and this
+# whole build stage is discarded, so nothing sensitive is exposed either way.
 ENV NODE_ENV=production
 
 RUN SESSION_SECRET=build-only-placeholder-secret-value-0000 \
