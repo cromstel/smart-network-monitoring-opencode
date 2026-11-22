@@ -102,13 +102,13 @@ supported; SQLite has been removed.
 | `DB_FILE` | — | No longer used (SQLite removed) |
 | `DB_HOST` | `localhost` | MySQL only |
 | `DB_PORT` | `3306` | MySQL only |
-| `DB_NAME` | `home_monitor` | MySQL only |
-| `DB_USER` | `monitor` | MySQL only |
-| `DB_PASSWORD` | *(empty)* | MySQL only |
-| `SESSION_SECRET` | — | **Required in production**, 32+ characters |
-| `ENCRYPTION_KEY` | — | **Required in production**, 32+ characters |
+| `DB_NAME` | — | **Required** (no default); `home_monitor` in the quick-start example only |
+| `DB_USER` | — | **Required** (no default); `monitor` in the quick-start example only |
+| `DB_PASSWORD` | — | **Required** (no usable default); set it in `.env` |
+| `SESSION_SECRET` | — | **Required in every environment**, 32+ characters |
+| `ENCRYPTION_KEY` | — | **Required in every environment**, 32+ characters |
 | `NETWORK_SUBNET` | `192.168.1.0/24` | CIDR passed to the scanner |
-| `SCANNER_MODE` | `simulated` | `simulated`, `arp` or `asus` |
+| `SCANNER_MODE` | `simulated` | `simulated`, `arp`, `asus`, `tplink`, or `netgear` |
 | `SCAN_INTERVAL_SECONDS` | `30` | 30–3600 |
 | `DATA_RETENTION_DAYS` | `30` | 1–365, enforced by the nightly prune |
 | `NODE_ENV` | `development` | |
@@ -181,9 +181,11 @@ start twice, so `next dev` hot reloads cannot stack duplicate jobs.
 
 ---
 
-## Upgrading
+## Using MySQL instead of the bundled MariaDB
 
-MySQL is the only supported database for both development and production.
+MySQL is the only supported database for both development and production. The
+quick start above uses the bundled `mariadb` service; to use a MySQL server
+instead, configure it like this.
 
 ```yaml
 services:

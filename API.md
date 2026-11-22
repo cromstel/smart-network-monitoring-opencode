@@ -86,5 +86,5 @@ and no list endpoint.
 - **Rate limits**: login (5/15min), setup (5/60min); others pending
 - **Validation**: `z.object(...)` + `.safeParse()` before DB interaction; flat-copied errors never expose SQL or internal state
 - **Safe errors**: auth returns generic message; admin errors return `apiError()` with code + message only; no stack traces to client
-- **CSP / headers**: `Content-Security-Policy` (no `eval`, `self` sources), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`; applied globally via `next.config.ts`
+- **CSP / headers**: `Content-Security-Policy` is generated per request in `proxy.ts` with a nonce + `'strict-dynamic'` (`'unsafe-eval'` only in development); the static headers (`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`) are set in `next.config.ts`
 - **Audit-plan**: `.opencode/plans/plan-admin-features-2026-10-25.md`
