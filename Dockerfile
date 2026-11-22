@@ -17,33 +17,30 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# The build validates configuration, so the secrets must be present and long
-# enough to satisfy the production check. They are build-time only — runtime
-# values are injected by the orchestrator and never baked into the image.
+# The build validates configuration, so the secrets and DB identity must be
+# present (and the secrets long enough) to satisfy the production guard. They
+# are build-time only — real values are injected by the orchestrator at runtime
+# (see the runtime stage) and never baked into the image. Nothing here is a
+# usable credential: mysql2 pools are lazy, so the DB values are never used to
+# connect, and `next build` imports every route to collect page data, which is
+# the only reason the guard runs at all (`lib/db/client.ts` builds its pool at
+# module scope via `requiredEnv('DB_USER' | 'DB_PASSWORD' | 'DB_NAME')`).
 #
-# APP_NAME is deliberately *not* here. Nothing that reads it is prerendered
+# APP_NAME is deliberately absent. Nothing that reads it is prerendered
 # (`app/layout.tsx` is `force-dynamic`), so the build never sees it and the
-# runtime value is the only one that exists. A build-time placeholder would be
-# a second source of truth for the product's name, and the one that shipped.
+# runtime value is the only one that exists. A placeholder here would be a
+# second source of truth for the product's name — and the one that shipped.
 #
-# The DB_* values are build-time placeholders for the same reason. `next build`
-# imports every route to collect page data, and `lib/db/client.ts` builds its
-# pool at module scope via `requiredEnv('DB_USER' | 'DB_PASSWORD' | 'DB_NAME')`,
-# so the production guard runs even though the build never opens a socket.
-# mysql2 pools are lazy, so these are never used to connect. Real connection
-# identity is injected by the orchestrator at runtime (see the runtime stage
-# below) — nothing here is a usable credential.
-#
-# They are set inline on the RUN rather than in an ENV instruction. Docker's
-# `SecretsUsedInArgOrEnv` check flags any ENV named *PASSWORD even when the
-# value is a throwaway placeholder, and an ENV is recorded in the layer's
-# metadata; an inline assignment is scoped to this one command and leaves no
-# trace in the image.
-ENV NODE_ENV=production \
-    SESSION_SECRET=build-only-placeholder-secret-value-0000 \
-    ENCRYPTION_KEY=build-only-placeholder-encryption-key-000000
+# All of these are set inline on the RUN rather than in an ENV instruction.
+# Docker's `SecretsUsedInArgOrEnv` check flags any ENV whose name looks like a
+# secret (*PASSWORD, *SECRET, *KEY) even when the value is a throwaway
+# placeholder, and an ENV is recorded in the layer's metadata; an inline
+# assignment is scoped to this one command and leaves no trace in the image.
+ENV NODE_ENV=production
 
-RUN DB_CLIENT=mysql \
+RUN SESSION_SECRET=build-only-placeholder-secret-value-0000 \
+    ENCRYPTION_KEY=build-only-placeholder-encryption-key-000000 \
+    DB_CLIENT=mysql \
     DB_HOST=127.0.0.1 \
     DB_PORT=3306 \
     DB_NAME=build_only_placeholder \
