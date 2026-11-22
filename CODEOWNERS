@@ -3,28 +3,34 @@
 # GitHub uses this file to request reviews from the right people when a PR
 # touches files under these paths. Add team names as @org/team or individual
 # users as @username.
+#
+# This repository has a single maintainer (cromstel is a User, not an org), so
+# every path resolves to the same owner. The section headers below document
+# which areas are considered sensitive; they are not separate reviewers. Code
+# owner review is disabled in the branch ruleset, so these entries are
+# informational groupings rather than a merge gate.
 
-# Global catch-all — everyone reviews everything by default
+# Global catch-all — the maintainer reviews everything by default
 * @cromstel
 
-# Security-sensitive paths — require security review
-**/.github/** @cromstel/security
-**/lib/api/auth.ts @cromstel/security
-**/lib/utils/crypto.ts @cromstel/security
-**/lib/utils/encryption.ts @cromstel/security
-**/lib/services/authService.ts @cromstel/security
+# Security-sensitive paths
+**/.github/** @cromstel
+**/lib/api/auth.ts @cromstel
+**/lib/utils/crypto.ts @cromstel
+**/lib/utils/encryption.ts @cromstel
+**/lib/services/authService.ts @cromstel
 
-# Database layer — DBA review
-**/lib/db/** @cromstel/dba
+# Database layer
+**/lib/db/** @cromstel
 
-# Frontend/UI — frontend review
-**/app/(app)/** @cromstel/frontend
-**/components/** @cromstel/frontend
+# Frontend/UI
+**/app/(app)/** @cromstel
+**/components/** @cromstel
 
-# API routes — backend review
-**/app/api/** @cromstel/backend
+# API routes
+**/app/api/** @cromstel
 
-# Infrastructure/deployment — ops review
-**/.github/workflows/cd.yml @cromstel/ops
-**/docker-compose.yml @cromstel/ops
-**/Dockerfile @cromstel/ops
+# Infrastructure/deployment
+**/.github/workflows/cd.yml @cromstel
+**/docker-compose.yml @cromstel
+**/Dockerfile @cromstel
