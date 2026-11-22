@@ -33,17 +33,23 @@ COPY . .
 # mysql2 pools are lazy, so these are never used to connect. Real connection
 # identity is injected by the orchestrator at runtime (see the runtime stage
 # below) — nothing here is a usable credential.
+#
+# They are set inline on the RUN rather than in an ENV instruction. Docker's
+# `SecretsUsedInArgOrEnv` check flags any ENV named *PASSWORD even when the
+# value is a throwaway placeholder, and an ENV is recorded in the layer's
+# metadata; an inline assignment is scoped to this one command and leaves no
+# trace in the image.
 ENV NODE_ENV=production \
     SESSION_SECRET=build-only-placeholder-secret-value-0000 \
-    ENCRYPTION_KEY=build-only-placeholder-encryption-key-000000 \
-    DB_CLIENT=mysql \
+    ENCRYPTION_KEY=build-only-placeholder-encryption-key-000000
+
+RUN DB_CLIENT=mysql \
     DB_HOST=127.0.0.1 \
     DB_PORT=3306 \
     DB_NAME=build_only_placeholder \
     DB_USER=build_only_placeholder \
-    DB_PASSWORD=build_only_placeholder
-
-RUN npm run build
+    DB_PASSWORD=build_only_placeholder \
+    npm run build
 
 # ---------- runtime ----------
 FROM node:22-bookworm-slim AS runtime
